@@ -1,0 +1,27 @@
+{
+  "name": "frontier-radar",
+  "productName": "前沿雷达",
+  "version": "1.0.0",
+  "description": "Frontier Radar — a liquid-glass desktop app for tracking and learning frontier technology.",
+  "main": "main.js",
+  "author": "luokun",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "icon": "node scripts/make-icon.js",
+    "cursor": "node scripts/make-cursors.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.12.0",
+    "cheerio": "^1.2.0",
+    "fast-xml-parser": "^5.12.1"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1"
+  }
+}

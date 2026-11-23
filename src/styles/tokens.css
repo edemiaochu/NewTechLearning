@@ -1,0 +1,331 @@
+/* =========================================================
+   Liquid Glass UI — Design Tokens
+   ---------------------------------------------------------
+   Drop this file into any project, then import it before
+   `liquid-glass.css`. Switch themes with:
+       <html data-theme="aurora">   (default)
+   Available: aurora | ocean | forest | ember | violet | light
+   ---------------------------------------------------------
+   Rules:
+   - Never hard-code colours in components. Use these tokens.
+   - Accent colours always ship with their `-rgb` companion so
+     alpha compositing (glow, tint, shadow) works everywhere.
+   - Only surfaces / accent / ambient / scrollbar differ between
+     dark themes. Text, borders and shadows stay shared.
+   ========================================================= */
+
+:root,
+:root[data-theme="aurora"] {
+  color-scheme: dark;
+
+  /* ---------- Surfaces ---------- */
+  --bg-app: #191b23;
+  --bg-viewer: #191b23;
+  --bg-toolbar: rgba(16, 18, 26, 0.55);
+  --bg-cluster: rgba(16, 18, 26, 0.42);
+  --bg-cluster-hover: rgba(16, 18, 26, 0.46);
+  --bg-panel: rgba(14, 16, 24, 0.72);
+  --bg-sidebar: rgba(22, 24, 32, 0.55);
+  --bg-modal: rgba(20, 22, 32, 0.92);
+  --bg-surface: rgba(255, 255, 255, 0.05);
+  --bg-surface-hover: rgba(255, 255, 255, 0.12);
+  --bg-input: rgba(255, 255, 255, 0.06);
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+
+  /* ---------- Text ---------- */
+  --text-primary: #e0e0e0;
+  --text-secondary: #c7c9d1;
+  --text-tertiary: #e8eaf0;
+  --text-muted: #9aa0a8;
+  --text-placeholder: #666666;
+  --text-danger: #ffb4b4;
+  --text-inverse: #ffffff;
+
+  /* ---------- Borders ---------- */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --border-divider: rgba(255, 255, 255, 0.14);
+
+  /* ---------- Accent ---------- */
+  --accent-primary: #a855f7;
+  --accent-secondary: #22d3ee;
+  --accent-primary-rgb: 168, 85, 247;
+  --accent-secondary-rgb: 34, 211, 238;
+  --accent-gradient: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  --accent-gradient-soft: linear-gradient(
+    135deg,
+    rgba(var(--accent-primary-rgb), 0.9),
+    rgba(var(--accent-secondary-rgb), 0.9)
+  );
+  --accent-glow: 0 0 14px rgba(var(--accent-primary-rgb), 0.45);
+  --accent-tint: rgba(var(--accent-primary-rgb), 0.15);
+  --accent-tint-strong: rgba(var(--accent-primary-rgb), 0.28);
+  --accent-border: rgba(var(--accent-primary-rgb), 0.45);
+  --accent-shadow: 0 0 18px rgba(var(--accent-primary-rgb), 0.5);
+
+  /* ---------- Ambient glow ---------- */
+  --ambient-purple: rgba(168, 85, 247, 0.1);
+  --ambient-cyan: rgba(34, 211, 238, 0.07);
+  --ambient-blue: rgba(59, 130, 246, 0.06);
+
+  /* ---------- Danger ---------- */
+  --danger-bg: rgba(239, 68, 68, 0.15);
+  --danger-bg-hover: rgba(239, 68, 68, 0.3);
+  --danger-border: rgba(239, 68, 68, 0.3);
+  --danger-border-hover: rgba(239, 68, 68, 0.55);
+
+  /* ---------- Shadows / elevation ---------- */
+  --shadow-color: rgba(0, 0, 0, 0.55);
+  --shadow-panel: rgba(0, 0, 0, 0.6);
+  --shadow-modal-color: rgba(0, 0, 0, 0.7);
+
+  /* ---------- Scrollbar ---------- */
+  --scrollbar-thumb: #3c3c4a;
+  --scrollbar-thumb-hover: #4e4e5e;
+  --scrollbar-track: rgba(0, 0, 0, 0.25);
+  --scrollbar-border: rgba(255, 255, 255, 0.04);
+
+  /* ---------- Glass physics ---------- */
+  --blur-sidebar: 36px;
+  --blur-cluster: 40px;
+  --blur-panel: 48px;
+  --blur-toolbar: 56px;
+  --blur-light: 14px;
+
+  --saturate-subtle: 140%;
+  --saturate-sidebar: 240%;
+  --saturate-toolbar: 260%;
+  --saturate-panel: 280%;
+
+  /* Inner light that makes a surface read as glass rather than paint. */
+  --glass-ring: rgba(255, 255, 255, 0.08);
+  --glass-ring-strong: rgba(255, 255, 255, 0.1);
+  --glass-top: rgba(255, 255, 255, 0.14);
+  --glass-top-strong: rgba(255, 255, 255, 0.18);
+  --glass-sheen: rgba(255, 255, 255, 0.16);
+  --glass-sheen-soft: rgba(255, 255, 255, 0.08);
+  --glass-sheen-hover: rgba(255, 255, 255, 0.1);
+  --glass-hairline: rgba(255, 255, 255, 0.35);
+  --glass-inset-soft: inset 0 1px 1px rgba(255, 255, 255, 0.06);
+
+  --shadow-toolbar:
+    0 14px 50px var(--shadow-color),
+    inset 0 0 0 1px var(--glass-ring),
+    inset 0 1px 0 var(--glass-top-strong);
+  --shadow-cluster:
+    0 10px 30px var(--shadow-color),
+    inset 0 0 0 1px var(--glass-ring),
+    inset 0 1px 0 var(--glass-ring-strong);
+  --shadow-popover:
+    0 24px 60px var(--shadow-panel),
+    inset 0 0 0 1px var(--glass-ring-strong),
+    inset 0 1px 0 var(--glass-top);
+  --shadow-modal:
+    0 30px 80px var(--shadow-modal-color),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 1px 0 var(--glass-top-strong);
+
+  /* Fine dither that breaks up 8-bit banding and dot moiré in
+     large, low-contrast glass highlights. Keep it very faint. */
+  --noise: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='200'%20height='200'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.7'%20numOctaves='4'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3C/filter%3E%3Crect%20width='200'%20height='200'%20filter='url(%23n)'%20opacity='.07'/%3E%3C/svg%3E");
+
+  /* ---------- Geometry ---------- */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-pill: 999px;
+
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+  --space-8: 36px;
+
+  /* ---------- Typography ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, sans-serif;
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 16px;
+  --tracking-wide: 0.2px;
+  --tracking-wider: 0.3px;
+
+  /* ---------- Motion ---------- */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 350ms;
+  --ease-standard: ease;
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --lift: translateY(-1px);
+
+  /* ---------- Layering ---------- */
+  --z-base: 0;
+  --z-page: 1;
+  --z-toolbar: 100;
+  --z-popover: 300;
+  --z-overlay: 1000;
+  --z-menu: 1000;
+}
+
+/* =========================================================
+   Light theme — the only light surface set.
+   Text/border/scrollbar values invert; glass sheen stays.
+   ========================================================= */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-app: #f3f4f6;
+  --bg-viewer: #f3f4f6;
+  --bg-toolbar: rgba(255, 255, 255, 0.85);
+  --bg-cluster: rgba(255, 255, 255, 0.72);
+  --bg-cluster-hover: rgba(255, 255, 255, 0.78);
+  --bg-panel: rgba(255, 255, 255, 0.95);
+  --bg-sidebar: rgba(255, 255, 255, 0.8);
+  --bg-modal: rgba(255, 255, 255, 0.95);
+  --bg-surface: rgba(0, 0, 0, 0.04);
+  --bg-surface-hover: rgba(0, 0, 0, 0.1);
+  --bg-input: rgba(0, 0, 0, 0.05);
+  --bg-overlay: rgba(0, 0, 0, 0.35);
+
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-tertiary: #374151;
+  --text-muted: #6b7280;
+  --text-placeholder: #9ca3af;
+  --text-danger: #ef4444;
+  --text-inverse: #ffffff;
+
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.1);
+  --border-hover: rgba(0, 0, 0, 0.14);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --border-divider: rgba(0, 0, 0, 0.1);
+
+  --accent-primary: #7c3aed;
+  --accent-secondary: #0891b2;
+  --accent-primary-rgb: 124, 58, 237;
+  --accent-secondary-rgb: 8, 145, 178;
+
+  --ambient-purple: rgba(168, 85, 247, 0.05);
+  --ambient-cyan: rgba(34, 211, 238, 0.04);
+  --ambient-blue: rgba(59, 130, 246, 0.03);
+
+  --shadow-color: rgba(0, 0, 0, 0.18);
+  --shadow-panel: rgba(0, 0, 0, 0.18);
+  --shadow-modal-color: rgba(0, 0, 0, 0.3);
+
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  --scrollbar-track: rgba(0, 0, 0, 0.06);
+  --scrollbar-border: rgba(0, 0, 0, 0.04);
+}
+
+/* =========================================================
+   Named dark themes.
+   Contract: only surfaces, accent, ambient and scrollbar
+   change. Text, borders, shadows and glass physics stay put.
+   ========================================================= */
+
+:root[data-theme="ocean"] {
+  --bg-app: #0f1822;
+  --bg-viewer: #0f1822;
+  --bg-toolbar: rgba(8, 22, 34, 0.55);
+  --bg-cluster: rgba(8, 22, 34, 0.42);
+  --bg-cluster-hover: rgba(8, 22, 34, 0.46);
+  --bg-panel: rgba(6, 18, 30, 0.72);
+  --bg-sidebar: rgba(12, 26, 38, 0.55);
+  --bg-modal: rgba(10, 22, 34, 0.92);
+
+  --accent-primary: #38bdf8;
+  --accent-secondary: #2dd4bf;
+  --accent-primary-rgb: 56, 189, 248;
+  --accent-secondary-rgb: 45, 212, 191;
+
+  --ambient-purple: rgba(56, 189, 248, 0.1);
+  --ambient-cyan: rgba(45, 212, 191, 0.07);
+  --ambient-blue: rgba(59, 130, 246, 0.06);
+
+  --scrollbar-thumb: #2b4353;
+  --scrollbar-thumb-hover: #3a5a6e;
+}
+
+:root[data-theme="forest"] {
+  --bg-app: #101a14;
+  --bg-viewer: #101a14;
+  --bg-toolbar: rgba(8, 22, 14, 0.55);
+  --bg-cluster: rgba(8, 22, 14, 0.42);
+  --bg-cluster-hover: rgba(8, 22, 14, 0.46);
+  --bg-panel: rgba(6, 18, 10, 0.72);
+  --bg-sidebar: rgba(12, 26, 18, 0.55);
+  --bg-modal: rgba(10, 22, 14, 0.92);
+
+  --accent-primary: #4ade80;
+  --accent-secondary: #2dd4bf;
+  --accent-primary-rgb: 74, 222, 128;
+  --accent-secondary-rgb: 45, 212, 191;
+
+  --ambient-purple: rgba(74, 222, 128, 0.1);
+  --ambient-cyan: rgba(45, 212, 191, 0.07);
+  --ambient-blue: rgba(163, 230, 53, 0.06);
+
+  --scrollbar-thumb: #2c4a38;
+  --scrollbar-thumb-hover: #3a5e48;
+}
+
+:root[data-theme="ember"] {
+  --bg-app: #1a1210;
+  --bg-viewer: #1a1210;
+  --bg-toolbar: rgba(30, 16, 12, 0.55);
+  --bg-cluster: rgba(30, 16, 12, 0.42);
+  --bg-cluster-hover: rgba(30, 16, 12, 0.46);
+  --bg-panel: rgba(26, 12, 9, 0.72);
+  --bg-sidebar: rgba(34, 18, 14, 0.55);
+  --bg-modal: rgba(30, 14, 11, 0.92);
+
+  --accent-primary: #fb923c;
+  --accent-secondary: #f43f5e;
+  --accent-primary-rgb: 251, 146, 60;
+  --accent-secondary-rgb: 244, 63, 94;
+
+  --ambient-purple: rgba(251, 146, 60, 0.1);
+  --ambient-cyan: rgba(244, 63, 94, 0.07);
+  --ambient-blue: rgba(245, 158, 11, 0.06);
+
+  --scrollbar-thumb: #4a332c;
+  --scrollbar-thumb-hover: #5e4238;
+}
+
+:root[data-theme="violet"] {
+  --bg-app: #1b1423;
+  --bg-viewer: #1b1423;
+  --bg-toolbar: rgba(30, 20, 40, 0.55);
+  --bg-cluster: rgba(30, 20, 40, 0.42);
+  --bg-cluster-hover: rgba(30, 20, 40, 0.46);
+  --bg-panel: rgba(26, 16, 36, 0.72);
+  --bg-sidebar: rgba(36, 24, 48, 0.55);
+  --bg-modal: rgba(30, 18, 40, 0.92);
+
+  --accent-primary: #c084fc;
+  --accent-secondary: #f472b6;
+  --accent-primary-rgb: 192, 132, 252;
+  --accent-secondary-rgb: 244, 114, 182;
+
+  --ambient-purple: rgba(192, 132, 252, 0.1);
+  --ambient-cyan: rgba(244, 114, 182, 0.07);
+  --ambient-blue: rgba(167, 139, 250, 0.06);
+
+  --scrollbar-thumb: #443054;
+  --scrollbar-thumb-hover: #5a426e;
+}
