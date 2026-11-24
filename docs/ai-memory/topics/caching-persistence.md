@@ -21,13 +21,15 @@ related: [[sources-feeds]], [[ai-deep-read]], [[networking-proxy]]
   - `fr.read` 已读、`fr.saved` 收藏
   - `fr.notes` 学习笔记
   - `fr.ai` AI 精读摘要（最多 30 条）
+  - `fr.newsDigest` AI 今日概览（单份，含新闻指纹/服务商/模型/usage）
   - `fr.ink` 画笔笔迹（最多 40 篇，单篇 160 笔、500 点/笔）
   - 主题/阅读布局/宽度/字号/来源直连等偏好
 - AI 摘要与正文缓存相互独立；正文抓取失败时 AI 卡片仍显示。
 - `updatedAt` 只在至少一个来源成功时推进；全部失败则下次启动仍会重试。
 - 「清除资讯缓存」：
   - 清 feed-cache + article-cache + 内存 articleCache
-  - 不清收藏、已读、笔记、AI 摘要、画笔
+  - 同时清 `fr.newsDigest`（概览基于过期新闻，必须重新生成）
+  - 不清收藏、已读、笔记、单篇 AI 摘要、画笔
 - Key 不在上述缓存中：safeStorage 加密的 settings.json。
 
 ## 关键文件

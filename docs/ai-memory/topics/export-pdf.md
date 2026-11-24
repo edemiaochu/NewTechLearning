@@ -1,9 +1,9 @@
 ---
 name: export-pdf
-description: 文章与学习笔记 PDF 导出：隐藏窗口 printToPDF、白底 A4 模板
+description: 文章、学习笔记与 AI 今日概览的 PDF/Markdown 导出：隐藏窗口 printToPDF、白底 A4 模板
 type: topic
-updated: 2026-11-23
-related: [[reader-experience]], [[ink-annotation]]
+updated: 2026-11-24
+related: [[reader-experience]], [[ink-annotation]], [[news-module]], [[ai-deep-read]]
 ---
 
 # PDF 导出
@@ -16,6 +16,10 @@ related: [[reader-experience]], [[ink-annotation]]
 - 笔记 PDF：
   - 入口：学习笔记页「导出 PDF」
   - 内容：全部笔记，按标题/来源/链接/更新时间/正文
+- AI 今日概览：
+  - 入口：今日热点 AI 概览卡片底部「Markdown」「PDF」
+  - 内容：标题、日期/范围/服务商/模型/生成时间/候选数、整体概览、编号重点（含为什么重要、来源、原报道链接）、今日主题、接下来留意、免责声明
+  - Markdown 为主进程写 `.md`；PDF 复用白底 A4 模板
 - 生成方式：`lib/pdf.js`
   - 构造白底 A4 HTML 模板（内嵌 CSS，无远程资源）
   - 隐藏 `BrowserWindow` 加载临时 HTML
@@ -28,11 +32,11 @@ related: [[reader-experience]], [[ink-annotation]]
 
 ## 关键文件
 
-- `lib/pdf.js` — HTML 模板、快照渲染、printToPDF、文件名清理
-- `main.js` — `pdf:export-article`、`pdf:export-notes` IPC
-- `preload.js` — `exportArticlePdf` / `exportNotesPdf`
+- `lib/pdf.js` — HTML 模板、快照渲染、printToPDF、AI 概览 HTML、文件名清理
+- `main.js` — `pdf:export-article`、`pdf:export-notes`、`pdf:export-news-digest`、`news:export-digest` IPC
+- `preload.js` — `exportArticlePdf` / `exportNotesPdf` / `exportNewsDigestPdf` / `exportNewsDigestMarkdown`
 - `src/js/views.js` — 导出按钮
-- `src/js/app.js` — payload 组装、保存/失败提示
+- `src/js/app.js` — payload 组装、概览 Markdown 生成、保存/失败提示
 
 ## 约束与坑
 
@@ -43,6 +47,7 @@ related: [[reader-experience]], [[ink-annotation]]
 - 首次点击导出需要正文已加载；否则提示稍后再试。
 - 当前页边距由 printToPDF 参数控制（单位英寸），CSS `@page` 不设 margin。
 - 验证过快照：文章 3 页、笔记 1 页；中英文、链接、列表、代码块、分页正常。
+- AI 概览 PDF 用测试 payload 验证：生成约 158 KB 的有效 PDF（`%PDF-1.4`）；保存对话框未做真实点击验证。
 
 ## 未决问题
 

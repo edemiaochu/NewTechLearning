@@ -23,6 +23,16 @@ import {
   getAISummary,
   sourceMap,
 } from './state.js';
+import {
+  newsItems,
+  newsSourceList,
+  selectScope,
+  buildHotEvents,
+  keywordsOf,
+  digestFingerprint,
+  isLowSignal,
+  isWorldItem,
+} from './news.js';
 
 const THEME_OPTIONS = [
   { id: 'aurora', label: '极光' },
@@ -173,13 +183,6 @@ function pickDiverse(items, limit) {
   return picked;
 }
 
-function isLowSignal(item) {
-  return (
-    item.sourceId === 'hn' &&
-    /(is hiring|who is hiring)/i.test(String(item.title || ''))
-  );
-}
-
 function pickHomeLead(items) {
   const ranked = rankedItems(items);
   return (
@@ -207,9 +210,16 @@ export function renderSidebar() {
   const errors = state.sources.filter((source) => state.feeds[source.id]?.error);
   const stale = state.stale || !state.updatedAt;
   const syncDotClass = errors.length ? 'is-error' : stale ? 'is-stale' : '';
+  const newsToday = selectScope(newsItems()).items.length;
 
   const navItems = [
     { view: 'overview', label: '概览', iconName: 'overview', count: null },
+    {
+      view: 'news',
+      label: '今日热点',
+      iconName: 'flame',
+      count: newsToday || null,
+    },
     { view: 'all', label: '全部资讯', iconName: 'rss', count: items.length },
     {
       view: 'claude',
@@ -221,6 +231,11 @@ export function renderSidebar() {
     { view: 'saved', label: '收藏夹', iconName: 'bookmark', count: savedCount || null },
     { view: 'notes', label: '学习笔记', iconName: 'note', count: notes.length || null },
   ];
+
+  const mainSources = state.sources.filter(
+    (source) => source.id !== 'claude' && !source.newsSection
+  );
+  const newsSources = state.sources.filter((source) => source.newsSection);
 
   return `
     <nav class="side-nav" aria-label="主要导航">
@@ -241,9 +256,8 @@ export function renderSidebar() {
     </nav>
 
     <div class="side-section">
-      <div class="side-label"><span>资讯源</span><span>${state.sources.length}</span></div>
-      ${state.sources
-        .filter((source) => source.id !== 'claude')
+      <div class="side-label"><span>资讯源</span><span>${mainSources.length}</span></div>
+      ${mainSources
         .map((source) => {
           const active = state.view === 'all' && state.sourceFilter === source.id;
           const error = state.feeds[source.id]?.error;
@@ -258,6 +272,28 @@ export function renderSidebar() {
         })
         .join('')}
     </div>
+
+    ${
+      newsSources.length
+        ? `<div class="side-section">
+            <div class="side-label"><span>新闻源</span><span>${newsSources.length}</span></div>
+            ${newsSources
+              .map((source) => {
+                const active = state.view === 'news' && state.sourceFilter === source.id;
+                const error = state.feeds[source.id]?.error;
+                return `<button class="source-row${active ? ' is-active' : ''}" type="button" data-news-source="${esc(
+                  source.id
+                )}" title="${esc(`${source.title} · ${source.subtitle}`)}">
+                  <span class="source-mark">${esc(source.mark)}</span>
+                  <span class="source-name">${esc(source.name)}</span>
+                  ${error ? `<span class="source-error-dot" title="${esc(error)}"></span>` : ''}
+                  <span class="source-count">${counts[source.id] || 0}</span>
+                </button>`;
+              })
+              .join('')}
+          </div>`
+        : ''
+    }
 
     <div class="side-footer">
       <div class="sync-row">
@@ -315,7 +351,10 @@ function renderOverview() {
 
   if (!items.length) {
     if (state.ui.refreshing) {
-      return loadingView('正在捕获第一批信号…', '首次启动会同时抓取 8 个信息源。');
+      return loadingView(
+        '正在捕获第一批信号…',
+        `首次启动会同时抓取 ${state.sources.length || 15} 个信息源。`
+      );
     }
     if (errors.length) {
       const routeLabel = proxyRouteLabel(state.settings);
@@ -365,8 +404,8 @@ function renderOverview() {
   const recent = recentCount(24);
   const unread = unreadCount(items);
   const activeSources = state.sources.filter((source) => (state.feeds[source.id]?.items || []).length).length;
-  const focusItems = items.filter((item) => !isLowSignal(item));
-  const lead = pickHomeLead(items);
+  const focusItems = items.filter((item) => !isLowSignal(item) && !isWorldItem(item));
+  const lead = pickHomeLead(focusItems.length ? focusItems : items);
   const highlights = pickDiverse(focusItems.length ? focusItems : items, 3);
   const claudePreview = rankedItems(claude).slice(0, 2);
 
@@ -483,7 +522,7 @@ function renderFeedView() {
     ? '把值得反复读的信号留在这里。收藏与笔记都只保存在本机。'
     : isSource
     ? `${source?.subtitle || ''} · 来自 ${source?.name || ''}`
-    : `把 ${state.sources.length} 个前沿信息源汇成一条信息流，可在「混合」与「最新」之间切换，支持搜索与只看未读。`;
+    : `把 ${state.sources.length} 个技术与新闻源汇成一条信息流，可在「混合」与「最新」之间切换，支持搜索与只看未读。`;
 
   const eyebrow = isSaved ? 'LIBRARY · 收藏' : isSource ? `SOURCE · ${source?.name || ''}` : 'FEED · 全部来源';
 
@@ -577,6 +616,634 @@ function renderFeedView() {
               ? `<button class="lg-btn" type="button" data-nav="all">去浏览资讯</button>`
               : `<button class="lg-btn" type="button" data-action="clear-search">清除搜索</button>`
           )
+    }
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* News view                                                           */
+/* ------------------------------------------------------------------ */
+
+function renderNewsSourceMarks(sources, max = 4) {
+  const list = (sources || []).slice(0, max);
+  const marks = list
+    .map(
+      (source) =>
+        `<span class="news-event-source" title="${esc(source.title || source.name)}">${esc(
+          source.mark || source.name
+        )}</span>`
+    )
+    .join('');
+  const more =
+    (sources || []).length > max
+      ? `<span class="news-event-source is-more">+${sources.length - max}</span>`
+      : '';
+  return `<span class="news-event-sources">${marks}${more}</span>`;
+}
+
+function renderNewsRow(item) {
+  const read = state.read.has(item.id);
+  const heat = Number(item.meta?.points) || 0;
+  const meta = [item.source?.name || '', heat ? `▲ ${heat}` : ''].filter(Boolean).join(' · ');
+  return `<article class="news-row${read ? ' is-read' : ''}" data-open-id="${esc(
+    item.id
+  )}" role="button" tabindex="0" aria-label="${esc(item.title)}">
+    <span class="news-row-time" title="${esc(formatDateTime(item.publishedAt))}">${esc(
+      timeAgo(item.publishedAt)
+    )}</span>
+    <span class="source-mark news-row-mark" title="${esc(item.source?.title || '')}">${esc(
+      item.source?.mark || ''
+    )}</span>
+    <span class="news-row-main">
+      <span class="news-row-title" title="${esc(item.title)}">${esc(item.title)}</span>
+      <span class="news-row-meta">${esc(meta)}</span>
+    </span>
+    <span class="news-row-open">${icon('arrow-right')}</span>
+  </article>`;
+}
+
+function renderNewsEventCard(event, rank) {
+  return `<article class="news-event-card" data-open-id="${esc(
+    event.id
+  )}" role="button" tabindex="0" aria-label="${esc(event.title)}">
+    <div class="news-event-top">
+      <span class="news-event-rank">${String(rank).padStart(2, '0')}</span>
+      <span class="news-event-coverage">${
+        event.coverage > 1 ? `${event.coverage} 家媒体` : '热门报道'
+      }</span>
+      <span class="news-event-time">${esc(timeAgo(event.newestAt))}</span>
+    </div>
+    <h3 class="news-event-title">${esc(event.title)}</h3>
+    <p class="news-event-summary">${esc(clampText(event.summary || '', 150))}</p>
+    <div class="news-event-foot">
+      ${renderNewsSourceMarks(event.sources)}
+      <span class="news-event-open">阅读 ${icon('arrow-right')}</span>
+    </div>
+  </article>`;
+}
+
+function renderNewsHero(event, stats, keywords, scopeLabel) {
+  return `<section class="news-hero">
+    <div class="news-hero-main">
+      <div class="news-kicker">
+        <span class="news-live"><span class="pulse-dot"></span> LIVE BRIEF</span>
+        <span>${esc(todayLabel())}</span>
+      </div>
+      <div class="news-tag">${event ? '今日头条' : '今日热点'}</div>
+      ${
+        event
+          ? `<h2 class="news-headline" data-open-id="${esc(
+              event.id
+            )}" role="button" tabindex="0">${esc(event.title)}</h2>
+             <p class="news-deck">${esc(clampText(event.summary || '', 300))}</p>
+             <div class="news-byline">
+               ${event.source ? sourceChip(event.source) : ''}
+               <span class="news-byline-dot"></span>
+               <span>${event.coverage > 1 ? `${event.coverage} 家媒体报道` : '热门报道'}</span>
+               <span class="news-byline-dot"></span>
+               <span>${esc(timeAgo(event.newestAt))}</span>
+               <button class="lg-btn lg-btn--sm" type="button" data-open-id="${esc(
+                 event.id
+               )}">${icon('book')} 阅读全文</button>
+             </div>`
+          : `<h2 class="news-headline">正在汇聚今日热点</h2>
+             <p class="news-deck">刷新后会从 ${stats.sourceTotal} 个新闻源抓取今天的世界与科技报道。</p>`
+      }
+    </div>
+    <aside class="news-stats">
+      <div class="news-stat"><strong>${stats.items}</strong><span>${esc(scopeLabel)}新闻</span></div>
+      <div class="news-stat"><strong>${stats.sources}</strong><span>新闻源</span></div>
+      <div class="news-stat"><strong>${stats.events}</strong><span>多源热点</span></div>
+      <div class="news-stat"><strong>${stats.world}</strong><span>世界要闻</span></div>
+      <div class="news-keyword-block">
+        <span class="news-stat-label">今日关键词</span>
+        <div class="news-keywords">${
+          keywords.length
+            ? keywords.map((word) => `<span class="news-keyword">#${esc(word)}</span>`).join('')
+            : '<span class="news-keyword is-muted">正在提取</span>'
+        }</div>
+      </div>
+    </aside>
+  </section>`;
+}
+
+function renderNewsDigest({ digest, loading, error, autoEnabled, validIds }) {
+  const configError = ['no_key', 'no_base_url', 'local_config_missing'].includes(
+    error?.code
+  );
+
+  if (!digest && loading) {
+    return `<section class="news-digest news-digest--loading" aria-live="polite">
+      <div class="news-digest-head">
+        <span class="news-digest-badge">${icon('sparkle')} AI 今日概览</span>
+        <span class="news-digest-meta">AI 正在整理</span>
+      </div>
+      <div class="news-digest-loading"><span class="lg-spinner"></span>正在阅读今日新闻、合并重复报道并提炼重点…</div>
+      <div class="news-digest-foot">
+        <span>会把当天新闻的标题与摘要发送给当前 AI 服务 · 仅供参考</span>
+      </div>
+    </section>`;
+  }
+
+  if (!digest && error) {
+    return `<section class="news-digest news-digest--empty">
+      <div class="news-digest-head">
+        <span class="news-digest-badge">${icon('sparkle')} AI 今日概览</span>
+        <span class="news-digest-meta">${configError ? '需要配置 AI' : '整理失败'}</span>
+      </div>
+      <h2 class="news-digest-title">${
+        configError ? '配置 AI 后，自动整理今日重点' : '今天的 AI 概览暂时没有生成'
+      }</h2>
+      <p class="news-digest-overview">${esc(
+        configError
+          ? `${error.message}。配置后打开「今日热点」会自动把当天标题与摘要整理成重点概览。`
+          : error.message
+      )}</p>
+      <div class="news-digest-foot">
+        <span>AI 概览只基于已抓取的新闻标题与摘要，仅供参考</span>
+        <span class="news-digest-actions">
+          ${
+            configError
+              ? `<button class="lg-btn lg-btn--sm lg-btn--primary" type="button" data-action="open-settings">${icon(
+                  'settings'
+                )} 去设置</button>`
+              : ''
+          }
+          <button class="lg-btn lg-btn--sm" type="button" data-action="news-digest">${icon(
+            'refresh'
+          )} 重试</button>
+        </span>
+      </div>
+    </section>`;
+  }
+
+  if (!digest) {
+    return `<section class="news-digest news-digest--empty">
+      <div class="news-digest-head">
+        <span class="news-digest-badge">${icon('sparkle')} AI 今日概览</span>
+        <span class="news-digest-meta">${autoEnabled ? '等待自动整理' : '自动整理已关闭'}</span>
+      </div>
+      <h2 class="news-digest-title">让 AI 用一分钟告诉你今天发生了什么</h2>
+      <p class="news-digest-overview">${
+        autoEnabled
+          ? '正在准备今日新闻候选，稍后会自动生成重点概览。'
+          : '你不希望自动发送新闻标题与摘要时可以保持关闭，也可以随时手动生成一次。'
+      }</p>
+      <div class="news-digest-foot">
+        <span>会把当天新闻的标题与摘要发送给当前 AI 服务 · 仅供参考</span>
+        <span class="news-digest-actions">
+          <button class="lg-btn lg-btn--sm lg-btn--primary" type="button" data-action="news-digest">${icon(
+            'sparkle'
+          )} 生成今日概览</button>
+        </span>
+      </div>
+    </section>`;
+  }
+
+  const data = digest.data || {};
+  const highlights = Array.isArray(data.highlights) ? data.highlights : [];
+  const themes = Array.isArray(data.themes) ? data.themes : [];
+  const watch = Array.isArray(data.watch) ? data.watch : [];
+  const provider = [digest.providerLabel, modelLabel(digest.model)].filter(Boolean).join(' · ');
+
+  return `<section class="news-digest" aria-live="polite">
+    <div class="news-digest-head">
+      <span class="news-digest-badge">${icon('sparkle')} AI 今日概览</span>
+      <span class="news-digest-head-right">
+        <span class="news-digest-meta">${esc(provider)} · ${esc(timeAgo(digest.generatedAt))}</span>
+        <button class="lg-icon-btn news-digest-expand" type="button" data-action="news-digest-fullscreen" title="全屏阅读" aria-label="全屏阅读">${icon(
+          'layout-fullscreen'
+        )}</button>
+      </span>
+    </div>
+    <h2 class="news-digest-title">${esc(data.headline || '今日重点概览')}</h2>
+    ${data.overview ? `<p class="news-digest-overview">${esc(data.overview)}</p>` : ''}
+    ${
+      highlights.length
+        ? `<div class="news-digest-highlights">${highlights
+            .map((highlight, index) => {
+              const linked = highlight.itemId && validIds.has(highlight.itemId);
+              return `<article class="news-digest-item${linked ? ' is-link' : ''}"${
+                linked
+                  ? ` data-open-id="${esc(highlight.itemId)}" role="button" tabindex="0"`
+                  : ''
+              }>
+                <span class="news-digest-rank">${String(index + 1).padStart(2, '0')}</span>
+                <div class="news-digest-body">
+                  <h3>${esc(highlight.title || highlight.summary || '')}</h3>
+                  ${
+                    highlight.title && highlight.summary
+                      ? `<p>${esc(highlight.summary)}</p>`
+                      : ''
+                  }
+                  ${
+                    highlight.whyItMatters
+                      ? `<p class="news-digest-why">${esc(highlight.whyItMatters)}</p>`
+                      : ''
+                  }
+                  ${
+                    highlight.source
+                      ? `<span class="news-digest-source">${esc(highlight.source)}</span>`
+                      : ''
+                  }
+                </div>
+              </article>`;
+            })
+            .join('')}</div>`
+        : ''
+    }
+    ${
+      themes.length
+        ? `<div class="news-digest-themes">${themes
+            .map((theme) => `<span class="news-digest-theme">#${esc(theme)}</span>`)
+            .join('')}</div>`
+        : ''
+    }
+    ${
+      watch.length
+        ? `<div class="news-digest-watch">
+            <span class="news-digest-watch-label">接下来留意</span>
+            <ul>${watch.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
+          </div>`
+        : ''
+    }
+    ${
+      error || loading
+        ? `<div class="news-digest-status">${
+            loading
+              ? '<span class="lg-spinner"></span>正在根据最新新闻重新整理…'
+              : esc(error?.message || '')
+          }</div>`
+        : ''
+    }
+    <div class="news-digest-foot">
+      <span>基于 ${digest.itemCount || 0} 条${esc(
+        digest.scopeLabel || '今日'
+      )}候选新闻 · AI 整理，仅供参考</span>
+      <span class="news-digest-actions">
+        <button class="lg-btn lg-btn--sm" type="button" data-action="news-digest-fullscreen" title="全屏阅读 AI 今日概览">${icon(
+          'layout-fullscreen'
+        )} 全屏阅读</button>
+        <button class="lg-btn lg-btn--sm" type="button" data-action="news-digest-md" title="导出 Markdown 文档">${icon(
+          'download'
+        )} Markdown</button>
+        <button class="lg-btn lg-btn--sm" type="button" data-action="news-digest-pdf" title="导出 PDF 文档">${icon(
+          'download'
+        )} PDF</button>
+        <button class="lg-btn lg-btn--sm" type="button" data-action="news-digest" ${
+          loading ? 'disabled' : ''
+        }>${icon('refresh')} 重新整理</button>
+      </span>
+    </div>
+  </section>`;
+}
+
+function renderDigestReaderBody(digest, validIds) {
+  const data = digest.data || {};
+  const highlights = Array.isArray(data.highlights) ? data.highlights : [];
+  const themes = Array.isArray(data.themes) ? data.themes : [];
+  const watch = Array.isArray(data.watch) ? data.watch : [];
+  const provider = [digest.providerLabel, modelLabel(digest.model)].filter(Boolean).join(' · ');
+  const meta = [
+    digest.date,
+    digest.scopeLabel ? `${digest.scopeLabel}新闻` : '',
+    provider,
+    digest.generatedAt ? formatDateTime(digest.generatedAt) : '',
+    digest.itemCount ? `基于 ${digest.itemCount} 条候选` : '',
+  ]
+    .filter(Boolean)
+    .map((part) => esc(part))
+    .join('<span class="dot"></span>');
+
+  return `<div class="digest-reader-kicker">${icon('sparkle')} AI 今日概览</div>
+    <h1 class="digest-reader-title">${esc(data.headline || 'AI 今日概览')}</h1>
+    <div class="digest-reader-meta">${meta}</div>
+    ${data.overview ? `<p class="digest-reader-overview">${esc(data.overview)}</p>` : ''}
+    ${
+      highlights.length
+        ? `<h2 class="digest-reader-section">重点信息</h2>
+           <div class="digest-reader-list">${highlights
+             .map((highlight, index) => {
+               const linked = highlight.itemId && validIds.has(highlight.itemId);
+               const title = highlight.title || highlight.summary || '重点';
+               const summary = highlight.summary || '';
+               return `<section class="digest-reader-item${
+                 linked ? ' is-link' : ''
+               }"${linked ? ` data-open-id="${esc(highlight.itemId)}" role="button" tabindex="0"` : ''}>
+                 <div class="digest-reader-num">${String(index + 1).padStart(2, '0')}</div>
+                 <div class="digest-reader-item-body">
+                   <h3>${esc(title)}</h3>
+                   ${summary && summary !== title ? `<p>${esc(summary)}</p>` : ''}
+                   ${
+                     highlight.whyItMatters
+                       ? `<p class="digest-reader-why">${esc(highlight.whyItMatters)}</p>`
+                       : ''
+                   }
+                   ${
+                     highlight.source || linked
+                       ? `<div class="digest-reader-source">${esc(
+                           highlight.source || ''
+                         )}${linked ? ' · 打开原文 →' : ''}</div>`
+                       : ''
+                   }
+                 </div>
+               </section>`;
+             })
+             .join('')}</div>`
+        : ''
+    }
+    ${
+      themes.length
+        ? `<h2 class="digest-reader-section">今日主题</h2>
+           <div class="digest-reader-themes">${themes
+             .map((theme) => `<span>#${esc(theme)}</span>`)
+             .join('')}</div>`
+        : ''
+    }
+    ${
+      watch.length
+        ? `<h2 class="digest-reader-section">接下来留意</h2>
+           <ul class="digest-reader-watch">${watch
+             .map((item) => `<li>${esc(item)}</li>`)
+             .join('')}</ul>`
+        : ''
+    }
+    <footer class="digest-reader-footer">
+      AI 整理，仅供参考；事实以原始报道为准。${provider ? ` · ${esc(provider)}` : ''}
+    </footer>`;
+}
+
+export function renderDigestOverlay() {
+  const digest = state.newsDigest;
+  if (!digest || !digest.data) return '';
+  const scope = selectScope(newsItems());
+  const validIds = new Set(scope.items.map((item) => item.id));
+  const provider = [digest.providerLabel, modelLabel(digest.model)].filter(Boolean).join(' · ');
+  return `<div class="reader-overlay reader-overlay--fullscreen digest-overlay" data-digest-backdrop>
+    <aside class="reader-panel digest-reader-panel" role="dialog" aria-modal="true" aria-label="AI 今日概览">
+      <header class="reader-head">
+        <div class="reader-head-left">
+          <span class="news-digest-badge">${icon('sparkle')} AI 今日概览</span>
+          <span class="card-time">${esc(provider)} · ${esc(timeAgo(digest.generatedAt))}</span>
+        </div>
+        <div class="reader-head-actions">
+          <button class="lg-btn lg-btn--sm" type="button" data-action="news-digest-md">${icon(
+            'download'
+          )} Markdown</button>
+          <button class="lg-btn lg-btn--sm" type="button" data-action="news-digest-pdf">${icon(
+            'download'
+          )} PDF</button>
+          <button class="lg-icon-btn" type="button" data-action="close-digest" title="关闭 (Esc)" aria-label="关闭">${icon(
+            'close'
+          )}</button>
+        </div>
+      </header>
+      <div class="reader-scroll lg-scroll">
+        <article class="digest-reader-content">${renderDigestReaderBody(
+          digest,
+          validIds
+        )}</article>
+      </div>
+    </aside>
+  </div>`;
+}
+
+function renderNewsChips(sources, scopeItems, filterSource) {
+  const counts = new Map();
+  for (const item of scopeItems) {
+    counts.set(item.sourceId, (counts.get(item.sourceId) || 0) + 1);
+  }
+  const chips = [
+    `<button class="chip${!filterSource ? ' is-active' : ''}" type="button" data-news-source="all">全部 <span class="chip-count">${scopeItems.length}</span></button>`,
+  ];
+  for (const source of sources) {
+    const count = counts.get(source.id) || 0;
+    if (!count && filterSource?.id !== source.id) continue;
+    chips.push(
+      `<button class="chip${filterSource?.id === source.id ? ' is-active' : ''}" type="button" data-news-source="${esc(
+        source.id
+      )}">${esc(source.name)} <span class="chip-count">${count}</span></button>`
+    );
+  }
+  return `<div class="feed-toolbar news-toolbar">
+    <div class="chip-row">${chips.join('')}</div>
+    <div class="toolbar-right"><span class="section-hint">${icon('newspaper')} 按新闻源筛选</span></div>
+  </div>`;
+}
+
+function renderNewsSearchView(query, items) {
+  const results = items.filter((item) =>
+    `${item.title} ${item.summary} ${(item.tags || []).join(' ')} ${item.source?.name || ''}`
+      .toLowerCase()
+      .includes(query)
+  );
+  return `<div class="view news-view">
+    <div class="view-head">
+      <div>
+        <div class="eyebrow"><span class="pulse-dot"></span> NEWSROOM · 搜索</div>
+        <h1 class="view-title">新闻搜索</h1>
+        <p class="view-sub">在 ${items.length} 条已缓存的新闻中搜索标题、摘要与来源。</p>
+      </div>
+      <div class="head-actions">
+        <button class="lg-btn" type="button" data-action="clear-search">${icon('close')} 清除搜索</button>
+        <button class="lg-btn lg-btn--primary" type="button" data-action="refresh">${icon(
+          'refresh'
+        )} 刷新新闻</button>
+      </div>
+    </div>
+    <div class="result-line">
+      <span>搜索 “${esc(clampText(state.query, 40))}” · ${results.length} 条结果</span>
+      <span class="live-hint">${icon('clock')} ${esc(syncLabel(state.updatedAt))}</span>
+    </div>
+    ${
+      results.length
+        ? `<div class="news-stream">${results.slice(0, 120).map(renderNewsRow).join('')}</div>`
+        : emptyState(
+            'search',
+            '没有匹配的新闻',
+            '换一个关键词，或清除搜索后再看看。',
+            `<button class="lg-btn" type="button" data-action="clear-search">清除搜索</button>`
+          )
+    }
+  </div>`;
+}
+
+function renderNewsView() {
+  const all = newsItems();
+  const sources = newsSourceList();
+  const query = state.query.trim().toLowerCase();
+  if (query) return renderNewsSearchView(query, all);
+
+  const filterId = state.sourceFilter;
+  const filterSource =
+    filterId !== 'all' ? sources.find((source) => source.id === filterId) || null : null;
+  const pool = filterSource ? all.filter((item) => item.sourceId === filterSource.id) : all;
+  const scope = selectScope(pool);
+  const globalScope = selectScope(all);
+  const items = scope.items;
+  const digestKey = digestFingerprint(globalScope);
+  const digest =
+    state.newsDigest && state.newsDigest.fingerprint === digestKey
+      ? state.newsDigest
+      : null;
+  const digestLoading =
+    state.ui.newsDigestLoading && state.ui.newsDigestFingerprint === digestKey;
+  const digestError =
+    state.ui.newsDigestError && state.ui.newsDigestFingerprint === digestKey
+      ? state.ui.newsDigestError
+      : null;
+  const digestIds = new Set(globalScope.items.map((item) => item.id));
+
+  const errors = sources.filter((source) => state.feeds[source.id]?.error);
+  const errorNames = errors.map((source) => source.name).join('、');
+
+  if (!items.length) {
+    if (state.ui.refreshing) {
+      return loadingView(
+        '正在捕获今日热点…',
+        `正在并行抓取 ${sources.length} 个新闻源，第一次同步可能需要十几秒。`
+      );
+    }
+    if (filterSource) {
+      return `<div class="view news-view">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow"><span class="pulse-dot"></span> NEWSROOM · ${esc(
+              filterSource.name
+            )}</div>
+            <h1 class="view-title">${esc(filterSource.title)}</h1>
+            <p class="view-sub">${esc(filterSource.subtitle)}</p>
+          </div>
+          <div class="head-actions">
+            <button class="lg-btn" type="button" data-news-source="all">查看全部新闻</button>
+            <button class="lg-btn lg-btn--primary" type="button" data-action="refresh">${icon(
+              'refresh'
+            )} 刷新新闻</button>
+          </div>
+        </div>
+        ${emptyState(
+          'search',
+          '这个来源今天还没有新报道',
+          '切换回全部新闻，或刷新后再看看。',
+          `<button class="lg-btn" type="button" data-news-source="all">查看全部新闻</button>`
+        )}
+      </div>`;
+    }
+    return `<div class="view news-view">
+      ${emptyState(
+        'flame',
+        errors.length ? '新闻源暂时无法同步' : '今天还没有抓到新闻',
+        errors.length
+          ? `${errorNames} 同步失败。请检查网络或代理设置后重试。`
+          : '点击刷新，从 TechCrunch、Ars Technica、WIRED、IT之家、爱范儿、NPR 等来源抓取今日热点。',
+        `<button class="lg-btn lg-btn--primary" type="button" data-action="refresh">${icon(
+          'refresh'
+        )} 抓取今日新闻</button>`
+      )}
+    </div>`;
+  }
+
+  const events = buildHotEvents(items);
+  const lead = events[0] || null;
+  const sideEvents = events.slice(1, 5);
+  const sourceCount = new Set(items.map((item) => item.sourceId)).size;
+  const world = items.filter(isWorldItem);
+  const tech = items.filter((item) => !isWorldItem(item));
+  const hotCount = events.filter((event) => event.coverage > 1).length;
+  const keywords = keywordsOf(items, 8);
+  const scopeLabel = scope.label;
+
+  return `<div class="view news-view">
+    <div class="view-head">
+      <div>
+        <div class="eyebrow"><span class="pulse-dot"></span> NEWSROOM · ${esc(todayLabel())}</div>
+        <h1 class="view-title">${
+          filterSource
+            ? esc(filterSource.title)
+            : `今日<span class="gradient-text">科技热点</span>`
+        }</h1>
+        <p class="view-sub">${
+          filterSource
+            ? `只看 ${esc(filterSource.name)} 的${esc(scopeLabel)}报道，共 ${items.length} 条。`
+            : `汇总 ${sources.length} 个新闻源，聚焦世界当天热点，科技为主。按媒体报道覆盖与社区热度聚合事件，打开任意一条可站内阅读或跳转原文。`
+        }</p>
+      </div>
+      <div class="head-actions">
+        <button class="lg-btn lg-btn--primary" type="button" data-action="refresh" ${
+          state.ui.refreshing ? 'disabled' : ''
+        }>${icon('refresh')} ${state.ui.refreshing ? '同步中…' : '刷新新闻'}</button>
+        <button class="lg-btn" type="button" data-action="open-settings">${icon(
+          'globe'
+        )} 网络与代理</button>
+      </div>
+    </div>
+
+    ${
+      errors.length
+        ? `<div class="notice">${icon('alert')}<span>${esc(
+            errorNames
+          )} 暂时无法同步，新闻模块会继续显示已缓存的内容。</span><button type="button" data-action="refresh">重试</button></div>`
+        : ''
+    }
+
+    ${
+      filterSource
+        ? ''
+        : renderNewsDigest({
+            digest,
+            loading: digestLoading,
+            error: digestError,
+            autoEnabled: state.settings.autoNewsDigest !== false,
+            validIds: digestIds,
+          })
+    }
+
+    ${renderNewsChips(sources, globalScope.items, filterSource)}
+
+    ${renderNewsHero(
+      lead,
+      {
+        items: items.length,
+        sources: sourceCount,
+        events: hotCount,
+        world: world.length,
+        sourceTotal: sources.length,
+      },
+      keywords,
+      scopeLabel
+    )}
+
+    ${
+      sideEvents.length
+        ? `${sectionHead(
+            '热点事件',
+            '标题相近的报道会聚成同一个事件，按覆盖媒体数与热度排序'
+          )}
+           <div class="news-event-grid">${sideEvents
+             .map((event, index) => renderNewsEventCard(event, index + 2))
+             .join('')}</div>`
+        : ''
+    }
+
+    ${
+      world.length
+        ? `${sectionHead('世界要闻', `${scopeLabel} · 来自全球新闻源`, `<span class="section-hint">${world.length} 条</span>`)}
+           <div class="news-stream news-stream--world">${world
+             .slice(0, 8)
+             .map(renderNewsRow)
+             .join('')}</div>`
+        : ''
+    }
+
+    ${
+      tech.length
+        ? `${sectionHead(
+            '科技新闻流',
+            `${scopeLabel} · 按发布时间排序${tech.length > 80 ? ' · 仅显示最近 80 条' : ''}`,
+            `<span class="section-hint">${tech.length} 条</span>`
+          )}
+           <div class="news-stream">${tech.slice(0, 80).map(renderNewsRow).join('')}</div>`
+        : ''
     }
   </div>`;
 }
@@ -1400,6 +2067,14 @@ export function renderSettingsModal() {
                 </div>
                 <p class="settings-note">${esc(secureNote)}${keyHelp} 切换服务商后请确认 Key 与模型属于当前服务。</p>`
           }
+          <div class="settings-inline news-digest-setting">
+            <label class="settings-inline-label" for="auto-news-digest-toggle">今日 AI 概览
+              <span>打开「今日热点」时自动整理当天重点；会把新闻标题与摘要发送给当前 AI 服务</span>
+            </label>
+            <label class="check-toggle"><input type="checkbox" id="auto-news-digest-toggle" ${
+              settings.autoNewsDigest !== false ? 'checked' : ''
+            } /> 启用</label>
+          </div>
         </section>
 
         <section class="settings-section">
@@ -1508,6 +2183,8 @@ export function renderSettingsModal() {
 
 export function renderMain() {
   switch (state.view) {
+    case 'news':
+      return renderNewsView();
     case 'claude':
       return renderClaudeView();
     case 'saved':
@@ -1557,13 +2234,25 @@ export function renderFontPopover(position = {}) {
 export function renderOverlay(themePosition = null, fontPosition = null) {
   if (state.ui.modal === 'settings') return renderSettingsModal();
   let html = '';
-  if (state.ui.activeItem && state.ui.readerLayout !== 'split') html += renderReader();
+  if (state.ui.digestOpen) {
+    html += renderDigestOverlay();
+  } else if (state.ui.activeItem && state.ui.readerLayout !== 'split') {
+    html += renderReader();
+  }
   if (state.ui.themeOpen) html += renderThemePopover(themePosition || {});
   if (state.ui.fontOpen) html += renderFontPopover(fontPosition || {});
   return html;
 }
 
 export function viewTitle() {
+  if (state.view === 'news') {
+    if (state.sourceFilter !== 'all') {
+      return (
+        state.sources.find((source) => source.id === state.sourceFilter)?.name || '今日热点'
+      );
+    }
+    return '今日热点';
+  }
   if (state.view === 'claude') return 'Claude 专区';
   if (state.view === 'saved') return '收藏夹';
   if (state.view === 'notes') return '学习笔记';

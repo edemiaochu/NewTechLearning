@@ -20,9 +20,16 @@ import {
   markRead,
   toggleSaved,
   setAISummary,
+  setNewsDigest,
   clearReadHistory,
   clearFeedCacheLocal,
 } from './state.js';
+import {
+  newsItems,
+  selectScope,
+  buildHotEvents,
+  digestFingerprint,
+} from './news.js';
 import {
   renderSidebar,
   renderMain,
@@ -33,7 +40,15 @@ import {
   renderFontPopover,
   viewTitle,
 } from './views.js';
-import { icon, esc, toast, debounce, formatDateTime } from './ui.js';
+import {
+  icon,
+  esc,
+  toast,
+  debounce,
+  formatDateTime,
+  todayLabel,
+  clampText,
+} from './ui.js';
 
 const api = window.radar;
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -56,6 +71,8 @@ const els = {
 
 let articleCache = new Map();
 let refreshPromise = null;
+let newsDigestPromise = null;
+let newsDigestAttemptKey = null;
 let autoRefreshTimer = null;
 let noteStatusTimer = null;
 let themePosition = { top: 64, right: 16 };
@@ -81,6 +98,7 @@ function renderMainOnly(preserveScroll = false) {
   const top = preserveScroll ? els.main.scrollTop : 0;
   els.main.innerHTML = renderMain();
   if (preserveScroll) els.main.scrollTop = top;
+  if (state.view === 'news') setTimeout(maybeAutoNewsDigest, 0);
 }
 
 function renderOverlayUI() {
@@ -607,7 +625,7 @@ function syncHash() {
 }
 
 function setView(view, options = {}) {
-  const allowed = ['overview', 'all', 'claude', 'saved', 'notes'];
+  const allowed = ['overview', 'news', 'all', 'claude', 'saved', 'notes'];
   state.view = allowed.includes(view) ? view : 'overview';
   state.sourceFilter = options.source || 'all';
   state.unreadOnly = false;
@@ -627,6 +645,21 @@ function setView(view, options = {}) {
 function setSourceFilter(sourceId) {
   const keepSaved = state.view === 'saved';
   state.view = keepSaved ? 'saved' : 'all';
+  state.sourceFilter = sourceId || 'all';
+  state.query = '';
+  state.unreadOnly = false;
+  els.search.value = '';
+  state.ui.themeOpen = false;
+  state.ui.fontOpen = false;
+  setFontButtonActive();
+  persistView();
+  syncHash();
+  renderAll();
+  els.main.scrollTop = 0;
+}
+
+function setNewsSourceFilter(sourceId) {
+  state.view = 'news';
   state.sourceFilter = sourceId || 'all';
   state.query = '';
   state.unreadOnly = false;
@@ -681,6 +714,7 @@ async function openReader(id) {
   }
   state.ui.modal = null;
   state.ui.themeOpen = false;
+  state.ui.digestOpen = false;
   state.ui.activeItem = item;
   state.ui.article = articleCache.get(id) || null;
   state.ui.articleLoading = !state.ui.article;
@@ -710,13 +744,17 @@ async function openReader(id) {
 function updateCardReadState(id) {
   if (!id) return;
   const card = els.main.querySelector(`.feed-card[data-id="${CSS.escape(id)}"]`);
-  if (!card) return;
-  if (state.unreadOnly) {
-    card.remove();
-    return;
+  if (card) {
+    if (state.unreadOnly) card.remove();
+    else {
+      card.classList.add('is-read');
+      card.querySelector('.unread-dot')?.remove();
+    }
   }
-  card.classList.add('is-read');
-  card.querySelector('.unread-dot')?.remove();
+  const newsRow = els.main.querySelector(
+    `[data-open-id="${CSS.escape(id)}"].news-row`
+  );
+  if (newsRow) newsRow.classList.add('is-read');
 }
 
 async function loadArticle(item) {
@@ -969,6 +1007,7 @@ async function saveApiKey() {
   const settings = await api.saveSettings({ apiKey: value });
   state.settings = settings;
   toast(settings.hasApiKey ? 'API Key 已保存' : 'API Key 保存失败', settings.hasApiKey ? 'success' : 'warn');
+  resetNewsDigestAttempt();
   renderOverlayUI();
   renderSidebarOnly();
 }
@@ -976,6 +1015,7 @@ async function saveApiKey() {
 async function clearApiKey() {
   const settings = await api.saveSettings({ apiKey: '' });
   state.settings = settings;
+  resetNewsDigestAttempt();
   toast('API Key 已清除');
   renderOverlayUI();
 }
@@ -986,6 +1026,19 @@ async function toggleAutoRefresh(enabled) {
   scheduleAutoRefresh();
   renderSidebarOnly();
   toast(settings.autoRefresh ? '已开启自动同步' : '已关闭自动同步');
+}
+
+async function toggleAutoNewsDigest(enabled) {
+  const settings = await api.saveSettings({ autoNewsDigest: enabled });
+  state.settings = settings;
+  renderOverlayUI();
+  if (settings.autoNewsDigest) {
+    newsDigestAttemptKey = null;
+    toast('已开启今日 AI 概览自动整理');
+    if (state.view === 'news') setTimeout(maybeAutoNewsDigest, 0);
+  } else {
+    toast('已关闭今日 AI 概览自动整理');
+  }
 }
 
 async function setProxyMode(mode) {
@@ -1035,6 +1088,7 @@ async function setAiProvider(provider) {
   if (!defaults) return;
   const settings = await api.saveSettings({ aiProvider: provider, ...defaults });
   state.settings = settings;
+  resetNewsDigestAttempt();
   if (provider === 'local-claude') {
     if (settings.localConfig?.ok) toast('已读取本机 Claude Code 配置', 'success');
     else toast(settings.localConfig?.error || '未检测到本机 Claude Code 配置', 'warn');
@@ -1051,6 +1105,7 @@ async function saveAiConfig() {
   if (baseInput) patch.aiBaseUrl = baseInput.value.trim();
   const settings = await api.saveSettings(patch);
   state.settings = settings;
+  resetNewsDigestAttempt();
   toast('AI 配置已保存', 'success');
   renderOverlayUI();
 }
@@ -1058,6 +1113,7 @@ async function saveAiConfig() {
 async function reloadLocalConfig() {
   const settings = await api.getSettings();
   state.settings = settings;
+  resetNewsDigestAttempt();
   if (settings.localConfig?.ok) toast('已读取本机 Claude Code 配置', 'success');
   else toast(settings.localConfig?.error || '未检测到本机 Claude Code 配置', 'warn');
   renderOverlayUI();
@@ -1163,6 +1219,275 @@ function refreshAll(options = {}) {
       renderMainOnly(!!options.auto && !options.manual);
     });
   return refreshPromise;
+}
+
+/* ------------------------------------------------------------------ */
+/* AI news digest                                                      */
+/* ------------------------------------------------------------------ */
+
+function digestCandidates(items) {
+  const events = buildHotEvents(items);
+  const seen = new Set();
+  const candidates = [];
+  const push = (item, coverage = 1) => {
+    if (!item?.id || seen.has(item.id)) return;
+    seen.add(item.id);
+    candidates.push({
+      id: item.id,
+      title: item.title,
+      source: item.source?.name || item.sourceId || '',
+      summary: clampText(item.summary || '', 220),
+      publishedAt: item.publishedAt || '',
+      coverage,
+      heat: Number(item.meta?.points) || 0,
+    });
+  };
+  for (const event of events.slice(0, 12)) {
+    for (const item of event.members) push(item, event.coverage);
+  }
+  for (const item of items) push(item, 1);
+  return candidates.slice(0, 36);
+}
+
+function currentNewsDigestContext() {
+  const scope = selectScope(newsItems());
+  return { scope, fingerprint: digestFingerprint(scope) };
+}
+
+function maybeAutoNewsDigest() {
+  if (state.view !== 'news' || state.query || state.sourceFilter !== 'all') return;
+  if (state.settings.autoNewsDigest === false) return;
+  if (state.ui.newsDigestLoading || newsDigestPromise) return;
+  const context = currentNewsDigestContext();
+  if (!context.scope.items.length) return;
+  if (state.newsDigest?.fingerprint === context.fingerprint) return;
+  if (newsDigestAttemptKey === context.fingerprint) return;
+  newsDigestAttemptKey = context.fingerprint;
+  generateNewsDigest(context, { auto: true });
+}
+
+function generateNewsDigest(context = null, options = {}) {
+  if (newsDigestPromise) return newsDigestPromise;
+  const ctx = context || currentNewsDigestContext();
+  const items = digestCandidates(ctx.scope.items);
+  if (!items.length) return Promise.resolve(null);
+
+  const fingerprint = ctx.fingerprint;
+  newsDigestAttemptKey = fingerprint;
+  state.ui.newsDigestLoading = true;
+  state.ui.newsDigestError = null;
+  state.ui.newsDigestFingerprint = fingerprint;
+  if (state.view === 'news') renderMainOnly(true);
+
+  const payload = {
+    date: todayLabel(),
+    scopeLabel: ctx.scope.label,
+    fingerprint,
+    items,
+  };
+
+  newsDigestPromise = api
+    .summarizeNewsDigest(payload)
+    .then((result) => {
+      if (!result?.ok) {
+        state.ui.newsDigestError = {
+          code: result?.code || 'error',
+          message: result?.message || 'AI 整理失败，请稍后重试',
+        };
+        if (!options.auto) toast(state.ui.newsDigestError.message, 'warn');
+        return null;
+      }
+      const entry = {
+        fingerprint,
+        scopeLabel: ctx.scope.label,
+        date: payload.date,
+        itemCount: items.length,
+        generatedAt: result.generatedAt,
+        provider: result.provider,
+        providerLabel: result.providerLabel,
+        model: result.model,
+        usage: result.usage || null,
+        data: result.data,
+      };
+      setNewsDigest(entry);
+      state.ui.newsDigestError = null;
+      if (!options.auto) toast('AI 今日概览已更新', 'success');
+      return entry;
+    })
+    .catch((err) => {
+      state.ui.newsDigestError = {
+        code: 'unexpected',
+        message: err?.message || 'AI 整理失败',
+      };
+      if (!options.auto) {
+        toast(`AI 整理失败：${state.ui.newsDigestError.message}`, 'warn');
+      }
+      return null;
+    })
+    .finally(() => {
+      state.ui.newsDigestLoading = false;
+      newsDigestPromise = null;
+      if (state.view === 'news') renderMainOnly(true);
+      if (state.ui.digestOpen) renderOverlayUI();
+    });
+
+  return newsDigestPromise;
+}
+
+function refreshNewsDigest() {
+  newsDigestAttemptKey = null;
+  const context = currentNewsDigestContext();
+  if (!context.scope.items.length) {
+    toast('还没有可整理的新闻', 'warn');
+    return;
+  }
+  generateNewsDigest(context, { auto: false });
+}
+
+function resetNewsDigestAttempt() {
+  newsDigestAttemptKey = null;
+  if (state.view === 'news') setTimeout(maybeAutoNewsDigest, 0);
+}
+
+function openDigestFullscreen() {
+  if (!state.newsDigest?.data) {
+    toast('请先生成 AI 今日概览', 'warn');
+    return;
+  }
+  if (!buildNewsDigestExportPayload()) {
+    toast('请先生成最新的 AI 今日概览', 'warn');
+    return;
+  }
+  if (state.ui.activeItem) closeReader({ silent: true });
+  state.ui.modal = null;
+  state.ui.themeOpen = false;
+  state.ui.fontOpen = false;
+  setFontButtonActive();
+  state.ui.digestOpen = true;
+  renderSplitReader(true);
+  renderOverlayUI();
+}
+
+function closeDigest() {
+  if (!state.ui.digestOpen) return;
+  state.ui.digestOpen = false;
+  renderOverlayUI();
+}
+
+function buildNewsDigestExportPayload() {
+  const digest = state.newsDigest;
+  if (!digest || !digest.data) return null;
+  const scope = selectScope(newsItems());
+  if (digest.fingerprint !== digestFingerprint(scope)) return null;
+  const itemMap = new Map(scope.items.map((item) => [item.id, item]));
+  const data = digest.data || {};
+  const highlights = (Array.isArray(data.highlights) ? data.highlights : []).map(
+    (highlight) => {
+      const item = highlight.itemId ? itemMap.get(highlight.itemId) : null;
+      return {
+        itemId: highlight.itemId || '',
+        title: highlight.title || '',
+        summary: highlight.summary || '',
+        whyItMatters: highlight.whyItMatters || '',
+        source: highlight.source || item?.source?.name || '',
+        url: item?.link || '',
+      };
+    }
+  );
+  return {
+    headline: data.headline || 'AI 今日概览',
+    overview: data.overview || '',
+    highlights,
+    themes: Array.isArray(data.themes) ? data.themes : [],
+    watch: Array.isArray(data.watch) ? data.watch : [],
+    date: digest.date || '',
+    scopeLabel: digest.scopeLabel || '',
+    generatedAt: digest.generatedAt || '',
+    provider: digest.providerLabel || '',
+    model: digest.model || '',
+    itemCount: digest.itemCount || 0,
+  };
+}
+
+function buildNewsDigestMarkdown(payload) {
+  const meta = [
+    payload.date,
+    payload.scopeLabel,
+    payload.provider,
+    payload.model,
+    payload.generatedAt ? `生成于 ${formatDateTime(payload.generatedAt)}` : '',
+    payload.itemCount ? `基于 ${payload.itemCount} 条候选新闻` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const lines = [`# ${payload.headline}`, '', meta, ''];
+  if (payload.overview) lines.push(payload.overview, '');
+  if (payload.highlights.length) {
+    lines.push('## 重点信息', '');
+    payload.highlights.forEach((highlight, index) => {
+      lines.push(`### ${index + 1}. ${highlight.title || highlight.summary || '重点'}`);
+      if (highlight.summary && highlight.summary !== highlight.title) {
+        lines.push('', highlight.summary);
+      }
+      if (highlight.whyItMatters) {
+        lines.push('', `**为什么重要：** ${highlight.whyItMatters}`);
+      }
+      if (highlight.source || highlight.url) {
+        lines.push(
+          '',
+          `来源：${[highlight.source, highlight.url].filter(Boolean).join(' · ')}`
+        );
+      }
+      lines.push('');
+    });
+  }
+  if (payload.themes.length) {
+    lines.push('## 今日主题', '', ...payload.themes.map((theme) => `- ${theme}`), '');
+  }
+  if (payload.watch.length) {
+    lines.push(
+      '## 接下来留意',
+      '',
+      ...payload.watch.map((item) => `- ${item}`),
+      ''
+    );
+  }
+  lines.push(
+    '---',
+    '',
+    '由前沿雷达 Frontier Radar 导出 · AI 整理，仅供参考；事实以原始报道为准。'
+  );
+  return lines.join('\n');
+}
+
+async function exportNewsDigestMarkdown() {
+  const payload = buildNewsDigestExportPayload();
+  if (!payload) {
+    toast('请先生成最新的 AI 今日概览', 'warn');
+    return;
+  }
+  const result = await api.exportNewsDigestMarkdown(buildNewsDigestMarkdown(payload));
+  if (result?.saved) toast('AI 今日概览已导出 Markdown', 'success');
+  else if (result?.error) toast(`导出失败：${result.error}`, 'warn');
+}
+
+async function exportNewsDigestPDF() {
+  const payload = buildNewsDigestExportPayload();
+  if (!payload) {
+    toast('请先生成最新的 AI 今日概览', 'warn');
+    return;
+  }
+  if (pdfExporting) return;
+  pdfExporting = true;
+  try {
+    const result = await api.exportNewsDigestPdf(payload);
+    if (result?.saved) toast('AI 今日概览 PDF 已导出', 'success');
+    else if (result?.error) toast(`PDF 导出失败：${result.error}`, 'warn');
+  } catch (err) {
+    toast(`PDF 导出失败：${err?.message || '未知错误'}`, 'warn');
+  } finally {
+    pdfExporting = false;
+  }
 }
 
 function scheduleAutoRefresh() {
@@ -1384,6 +1709,13 @@ function handleDocumentClick(event) {
     }
   }
 
+  const digestBackdrop = event.target.closest('[data-digest-backdrop]');
+  if (digestBackdrop && event.target === digestBackdrop) {
+    event.preventDefault();
+    closeDigest();
+    return;
+  }
+
   const external = event.target.closest('[data-external]');
   if (external) {
     event.preventDefault();
@@ -1467,6 +1799,26 @@ function handleDocumentClick(event) {
       case 'ai-summary':
         event.preventDefault();
         runAI();
+        return;
+      case 'news-digest':
+        event.preventDefault();
+        refreshNewsDigest();
+        return;
+      case 'news-digest-fullscreen':
+        event.preventDefault();
+        openDigestFullscreen();
+        return;
+      case 'close-digest':
+        event.preventDefault();
+        closeDigest();
+        return;
+      case 'news-digest-md':
+        event.preventDefault();
+        exportNewsDigestMarkdown();
+        return;
+      case 'news-digest-pdf':
+        event.preventDefault();
+        exportNewsDigestPDF();
         return;
       case 'save-key':
         event.preventDefault();
@@ -1573,6 +1925,13 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const newsSourceEl = event.target.closest('[data-news-source]');
+  if (newsSourceEl) {
+    event.preventDefault();
+    setNewsSourceFilter(newsSourceEl.dataset.newsSource);
+    return;
+  }
+
   const sourceEl = event.target.closest('[data-source-filter]');
   if (sourceEl) {
     event.preventDefault();
@@ -1635,6 +1994,9 @@ function handleDocumentChange(event) {
   if (event.target.id === 'auto-refresh-toggle') {
     toggleAutoRefresh(!!event.target.checked);
   }
+  if (event.target.id === 'auto-news-digest-toggle') {
+    toggleAutoNewsDigest(!!event.target.checked);
+  }
 }
 
 function handleDocumentInput(event) {
@@ -1663,6 +2025,11 @@ function handleDocumentKeydown(event) {
     if (state.ui.fontOpen || state.ui.themeOpen) {
       event.preventDefault();
       closeReaderPopovers();
+      return;
+    }
+    if (state.ui.digestOpen) {
+      event.preventDefault();
+      closeDigest();
       return;
     }
     if (state.ui.penActive) {
@@ -1774,7 +2141,7 @@ function handleDocumentKeydown(event) {
 
 function initialViewFromHash() {
   const hash = location.hash.replace(/^#/, '');
-  if (['overview', 'all', 'claude', 'saved', 'notes'].includes(hash)) {
+  if (['overview', 'news', 'all', 'claude', 'saved', 'notes'].includes(hash)) {
     state.view = hash;
   }
 }

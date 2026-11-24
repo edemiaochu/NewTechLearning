@@ -6,6 +6,7 @@ const LS = {
   saved: 'fr.saved',
   notes: 'fr.notes',
   ai: 'fr.ai',
+  newsDigest: 'fr.newsDigest',
   view: 'fr.view',
   order: 'fr.order',
   readerLayout: 'fr.readerLayout',
@@ -37,11 +38,13 @@ export const state = {
   saved: new Set(),
   notes: {},
   ai: {},
+  newsDigest: null,
   ink: {},
   settings: {
     hasApiKey: false,
     keyHint: '',
     autoRefresh: true,
+    autoNewsDigest: true,
     secure: true,
     model: 'claude-opus-5-5',
     aiProvider: 'local-claude',
@@ -59,6 +62,10 @@ export const state = {
     refreshing: false,
     refreshError: null,
     lastReport: null,
+    newsDigestLoading: false,
+    newsDigestError: null,
+    newsDigestFingerprint: null,
+    digestOpen: false,
     activeItem: null,
     article: null,
     articleLoading: false,
@@ -120,11 +127,15 @@ export function hydrateLocal() {
   const ai = readJSON(LS.ai, {});
   state.ai = ai && typeof ai === 'object' && !Array.isArray(ai) ? ai : {};
 
+  const newsDigest = readJSON(LS.newsDigest, null);
+  state.newsDigest =
+    newsDigest && typeof newsDigest === 'object' && newsDigest.data ? newsDigest : null;
+
   const ink = readJSON(LS.ink, {});
   state.ink = ink && typeof ink === 'object' && !Array.isArray(ink) ? ink : {};
 
   const view = localStorage.getItem(LS.view);
-  if (['overview', 'all', 'claude', 'saved', 'notes'].includes(view)) state.view = view;
+  if (['overview', 'news', 'all', 'claude', 'saved', 'notes'].includes(view)) state.view = view;
 
   const order = localStorage.getItem(LS.order);
   if (['mixed', 'time'].includes(order)) state.order = order;
@@ -274,6 +285,24 @@ export function persistAI() {
     .slice(0, MAX_AI);
   state.ai = Object.fromEntries(entries);
   writeJSON(LS.ai, state.ai);
+}
+
+export function setNewsDigest(entry) {
+  state.newsDigest = entry && entry.data ? entry : null;
+  try {
+    localStorage.setItem(LS.newsDigest, JSON.stringify(state.newsDigest));
+  } catch {
+    // Ignore.
+  }
+}
+
+export function clearNewsDigest() {
+  state.newsDigest = null;
+  try {
+    localStorage.removeItem(LS.newsDigest);
+  } catch {
+    // Ignore.
+  }
 }
 
 export function persistView() {
@@ -525,11 +554,13 @@ export function clearAllLocal() {
   state.saved = new Set();
   state.notes = {};
   state.ai = {};
+  state.newsDigest = null;
   state.ink = {};
   persistRead();
   persistSaved();
   persistNotes();
   persistAI();
+  clearNewsDigest();
   persistInk();
 }
 
@@ -537,6 +568,12 @@ export function clearFeedCacheLocal() {
   state.feeds = {};
   state.updatedAt = null;
   state.stale = true;
+  state.newsDigest = null;
+  try {
+    localStorage.removeItem(LS.newsDigest);
+  } catch {
+    // Ignore.
+  }
 }
 
 export { THEMES, LS };

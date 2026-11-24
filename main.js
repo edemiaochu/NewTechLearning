@@ -19,7 +19,12 @@ const { SettingsStore } = require('./lib/settings');
 const { createSummarizer } = require('./lib/ai');
 const { inspectClaudeCodeConfig } = require('./lib/local-claude');
 const { isHttpUrl, DEFAULT_UA, setDirectSession, fetchText } = require('./lib/net');
-const { exportArticlePdf, exportNotesPdf, sanitizeFilename } = require('./lib/pdf');
+const {
+  exportArticlePdf,
+  exportNotesPdf,
+  exportNewsDigestPdf,
+  sanitizeFilename,
+} = require('./lib/pdf');
 
 app.setName('前沿雷达');
 app.setAppUserModelId('com.luokun.frontier-radar');
@@ -370,6 +375,14 @@ function registerIpc() {
     }
   });
 
+  ipcMain.handle('news:digest', async (_event, payload) => {
+    try {
+      return await summarizer.summarizeNewsDigest(payload);
+    } catch (err) {
+      return { ok: false, code: 'unexpected', message: err?.message || '生成失败' };
+    }
+  });
+
   const settingsSnapshot = (state = settings.publicState()) => ({
     ...state,
     proxyStatus,
@@ -444,6 +457,41 @@ function registerIpc() {
       return { saved: true, path: result.filePath };
     } catch (err) {
       return { saved: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('news:export-digest', async (_event, markdown) => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const result = await dialog.showSaveDialog(win, {
+      title: '导出 AI 今日概览',
+      defaultPath: path.join(defaultPdfDir(), `前沿雷达-AI今日概览-${stamp}.md`),
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (result.canceled || !result.filePath) return { saved: false };
+    try {
+      await fs.promises.writeFile(result.filePath, String(markdown || ''), 'utf8');
+      return { saved: true, path: result.filePath };
+    } catch (err) {
+      return { saved: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('pdf:export-news-digest', async (_event, payload = {}) => {
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
+        title: '导出 AI 今日概览 PDF',
+        defaultPath: path.join(
+          defaultPdfDir(),
+          sanitizeFilename(`前沿雷达-AI今日概览-${stamp}`)
+        ),
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (canceled || !filePath) return { saved: false };
+      await exportNewsDigestPdf(payload, filePath);
+      return { saved: true, path: filePath };
+    } catch (err) {
+      return { saved: false, error: err?.message || 'PDF 导出失败' };
     }
   });
 
