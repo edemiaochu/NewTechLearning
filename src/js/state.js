@@ -2,6 +2,7 @@
 
 const LS = {
   theme: 'fr.theme',
+  glassBackground: 'fr.glassBackground',
   read: 'fr.read',
   saved: 'fr.saved',
   notes: 'fr.notes',
@@ -34,6 +35,7 @@ export const state = {
   order: 'mixed',
   query: '',
   theme: 'aurora',
+  glassBackground: 'clean',
   read: new Set(),
   saved: new Set(),
   notes: {},
@@ -114,6 +116,11 @@ export function hydrateLocal() {
     ? localStorage.getItem(LS.theme)
     : 'aurora';
   document.documentElement.dataset.theme = state.theme;
+
+  const glassBackground = localStorage.getItem(LS.glassBackground);
+  if (['clean', 'specimen', 'solid'].includes(glassBackground)) {
+    state.glassBackground = glassBackground;
+  }
 
   const read = readJSON(LS.read, []);
   state.read = new Set(Array.isArray(read) ? read.slice(-MAX_READ) : []);
@@ -323,6 +330,17 @@ export function applyTheme(theme) {
     // Ignore.
   }
   if (window.radar?.setTheme) window.radar.setTheme(next);
+  return next;
+}
+
+export function setGlassBackground(mode) {
+  const next = ['clean', 'specimen', 'solid'].includes(mode) ? mode : 'clean';
+  state.glassBackground = next;
+  try {
+    localStorage.setItem(LS.glassBackground, next);
+  } catch {
+    // Ignore.
+  }
   return next;
 }
 

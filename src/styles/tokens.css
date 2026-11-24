@@ -81,6 +81,10 @@
   --shadow-panel: rgba(0, 0, 0, 0.6);
   --shadow-modal-color: rgba(0, 0, 0, 0.7);
 
+  /* Host-side depth for WebGL glass: the shader no longer draws a contact
+     shadow, so floating chrome relies on CSS for separation. */
+  --shadow-optical: 0 12px 30px rgba(0, 0, 0, 0.24), 0 2px 8px rgba(0, 0, 0, 0.14);
+
   /* ---------- Scrollbar ---------- */
   --scrollbar-thumb: #3c3c4a;
   --scrollbar-thumb-hover: #4e4e5e;
@@ -109,6 +113,10 @@
   --glass-sheen-hover: rgba(255, 255, 255, 0.1);
   --glass-hairline: rgba(255, 255, 255, 0.35);
   --glass-inset-soft: inset 0 1px 1px rgba(255, 255, 255, 0.06);
+
+  /* Neutral surface tint for the WebGL optical material. The shader derives
+     the dark-theme variant from it, so every theme shares the same value. */
+  --glass-optics-tint: #ffffff;
 
   --shadow-toolbar:
     0 14px 50px var(--shadow-color),
@@ -225,6 +233,7 @@
   --shadow-color: rgba(0, 0, 0, 0.18);
   --shadow-panel: rgba(0, 0, 0, 0.18);
   --shadow-modal-color: rgba(0, 0, 0, 0.3);
+  --shadow-optical: 0 12px 30px rgba(86, 84, 126, 0.14), 0 2px 8px rgba(86, 84, 126, 0.08);
 
   --scrollbar-thumb: #cbd5e1;
   --scrollbar-thumb-hover: #94a3b8;
@@ -305,6 +314,16 @@
 
   --scrollbar-thumb: #4a332c;
   --scrollbar-thumb-hover: #5e4238;
+}
+
+/* Keep native UI (scrollbars, form controls) dark for every named dark theme.
+   core.css also declares `:root { color-scheme: light }`, so state it again at
+   theme specificity. */
+:root[data-theme="ocean"],
+:root[data-theme="forest"],
+:root[data-theme="ember"],
+:root[data-theme="violet"] {
+  color-scheme: dark;
 }
 
 :root[data-theme="violet"] {

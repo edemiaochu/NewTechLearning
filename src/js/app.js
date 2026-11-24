@@ -2,6 +2,7 @@ import {
   state,
   hydrateLocal,
   applyTheme,
+  setGlassBackground,
   setSources,
   setFeeds,
   persistView,
@@ -49,6 +50,7 @@ import {
   todayLabel,
   clampText,
 } from './ui.js';
+import { applyGlassBackground, initGlass } from './glass.js';
 
 const api = window.radar;
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -1635,6 +1637,16 @@ function themeLabel(theme) {
   return labels[theme] || theme;
 }
 
+function chooseGlassBackground(mode) {
+  const next = setGlassBackground(mode);
+  applyGlassBackground(next);
+  document.querySelectorAll('[data-glass-background]').forEach((button) => {
+    button.classList.toggle('is-active', button.dataset.glassBackground === next);
+  });
+  const labels = { clean: '柔光渐变', specimen: '光学标定', solid: '主题纯色' };
+  toast(`光学玻璃背景：${labels[next] || next}`);
+}
+
 /* ------------------------------------------------------------------ */
 /* Event handling                                                      */
 /* ------------------------------------------------------------------ */
@@ -1886,6 +1898,10 @@ function handleDocumentClick(event) {
       case 'proxy-mode':
         event.preventDefault();
         setProxyMode(actionEl.dataset.proxyMode);
+        return;
+      case 'glass-background':
+        event.preventDefault();
+        chooseGlassBackground(actionEl.dataset.glassBackground);
         return;
       case 'save-proxy':
         event.preventDefault();
@@ -2175,6 +2191,7 @@ async function boot() {
 
   applyTheme(state.theme);
   renderAll();
+  initGlass(state.glassBackground);
   scheduleAutoRefresh();
 
   const hasItems = allItems().length > 0;

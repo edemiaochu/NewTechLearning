@@ -158,9 +158,11 @@ lib/
   local-claude.js       读取本机 Claude Code 配置（凭据不出主进程）
   net.js                带超时的 fetch 与 URL 校验
 src/
-  index.html            应用外壳
-  styles/               Liquid Glass tokens / 组件 + 应用层样式
+  index.html            应用外壳（含固定 #glass-canvas）
+  styles/               Liquid Glass tokens / 组件 + 应用层 + WebGL 光学层样式
+  liquid-glass/         liquid-glass-optics vanilla 核心（TS 源 + 编译 JS）
   js/                   ES Module 渲染层：状态、视图、事件、主题
+    glass.js            WebGL2 光学玻璃初始化、表面注册、主题调色板
     news.js             今日范围、跨来源事件聚合、关键词
 scripts/make-icon.js    无依赖生成 build/icon.png 与 icon.ico
 build/                  应用图标
@@ -175,6 +177,13 @@ build/                  应用图标
 - 每屏只有一个主色行动点；危险操作用 danger token。
 - 已实现 `prefers-reduced-motion`、`prefers-reduced-transparency` 与无 `backdrop-filter` 的回退。
 - 内置 6 套主题，主题选择会持久化且不会闪烁（`theme-boot.js`）。
+- macOS 保留原生红绿灯并隐藏自定义窗口按钮，品牌图标与文字位于右上；Windows/Linux 使用自定义最小化/最大化/关闭按钮，品牌在左。
+- 标题栏、侧栏、搜索框、工具栏簇与窗口控制由 WebGL2 光学层渲染：真实背景折射、Snell 近似、RGB 色散、Fresnel 边缘与指针高光。侧栏是单块光学玻璃，导航/来源行是普通 CSS 行；环境调色板由当前主题 tokens 生成，六套主题各自保留色调。
+- 主内容区使用不透明静态舞台（类似 PDF-Reader 的 PDF 页），光学材质只留在 chrome 与侧栏；浮动控件用宿主 `--shadow-optical` 补深度。这样正文不会被全屏动画折射背景和半透明卡片削弱清晰度。
+- 光学材质跟随 `liquid-glass-optics` 最新更新：Liquid 预设为 `thickness 84 / bevel 4`，默认关闭接触阴影，使用更宽更亮的细 rim，避免暗色主题出现黑色描边。
+- 光学层只在透明的 chrome 层生效；modal / popover / toast / 阅读器仍是 CSS 玻璃，正文卡片保持实色，保证可读性与层叠正确。
+- 「设置 → 外观 → 光学玻璃背景」可切换柔光渐变 / 光学标定 / 主题纯色；光学标定显示同心环、点阵与制图线，折射与色散最明显；纯色没有可折射细节，但保留 tint、边缘高光与指针高光。选择会保存在本机。
+- WebGL2 不可用或系统启用「降低透明度」时，自动保留原 CSS 玻璃效果。
 
 ## 已知限制
 
@@ -187,6 +196,7 @@ build/                  应用图标
 - 「今日热点」的事件聚合基于标题词重合的轻量启发式：同一事件在多家媒体报道时效果最好；中英文标题、措辞差异很大的报道可能不会合并。
 - 新闻源可能有反爬或地区限制（尤其境外站点）；失败时保留旧缓存，并在来源旁显示错误提示，可切换代理后重试。
 - AI 今日概览依赖所选模型的理解与 JSON 输出能力；模型偶发返回不可解析内容时会自动重试一次，仍失败则保留旧缓存并提示手动重试；指纹不匹配的旧概览不会冒充为今天的结果。概览只基于当天候选新闻的标题与摘要，可能出现概括偏差。
+- WebGL 光学层持续以动画帧渲染程序化环境；在极低端集显上可能增加 GPU 占用。覆盖层使用 CSS 玻璃 fallback，不参与 WebGL 折射。
 
 ## 打包
 

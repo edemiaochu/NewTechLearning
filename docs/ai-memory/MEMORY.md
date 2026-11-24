@@ -9,7 +9,7 @@
 - [当前状态](STATE.md) — 核心功能已完成；未提交、未打包；待真实网络复测
 
 ## 主题
-- [液态玻璃 UI](topics/ui-liquid-glass.md) — 设计 tokens、6 套主题、窗口与首页层级
+- [液态玻璃 UI](topics/ui-liquid-glass.md) — 设计 tokens、6 套主题、WebGL2 光学玻璃层、窗口与首页层级
 - [信息源与抓取](topics/sources-feeds.md) — 15 个来源、RSS/Atom、正文抽取与摘要
 - [今日热点新闻](topics/news-module.md) — 当天范围、跨来源事件聚合、关键词与世界要闻
 - [阅读体验](topics/reader-experience.md) — 居中/全屏/分栏、字号、宽度与阅读框

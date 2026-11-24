@@ -18,6 +18,9 @@ updated: 2026-11-24
 - claude.dev 官方 Markdown、arXiv 摘要、通用 HTML 正文抽取 — `article.js`
 - Claude 专区、学习路线、专区笔记 — `views.js`
 - 液态玻璃 UI、6 套主题、无边框窗口、自定义图标 — `src/styles/` / `build/`
+- macOS 窗口适配：保留原生红绿灯并垂直居中，隐藏自定义窗口按钮，品牌图标与文字移到右上；Windows/Linux 保持原布局 — `main.js` / `preload.js` / `theme-boot.js` / `app.css`
+- WebGL2 光学玻璃层：标题栏/侧栏/搜索/工具栏簇/窗口控制真实折射、色散、Fresnel 与指针高光；侧栏是单个光学表面，导航/来源行为普通 CSS 行（2026-11-24 重设计）；主内容区是不透明静态舞台，保证正文清晰 — `src/js/glass.js` / `src/liquid-glass/` / `src/styles/glass-webgl.css`
+- 光学玻璃背景模式：柔光渐变 / 光学标定 / 主题纯色，设置→外观切换并持久化 `fr.glassBackground`；主题切换同步调色板与纯色底
 - 居中 / 全屏 / 右侧分栏阅读，分栏下信息流仍可点击
 - 阅读框宽高、阅读栏宽度、字号 14–24px 可调并持久化
 - 阅读器局部刷新，修复打开文章时闪烁
@@ -46,6 +49,8 @@ updated: 2026-11-24
 - AI API 请求仍遵循全局代理，不受按来源直连影响
 - 画笔标注仅在应用内显示，不进入 PDF
 - 分栏宽度与居中阅读框尺寸不会在同一布局设置下互相换算
+- WebGL 光学材质只用于透明 chrome 层；modal/popover/toast/阅读器仍是 CSS 玻璃 fallback（页面 canvas 无法绘制在覆盖内容之上）
+- WebGL2 不可用或 `prefers-reduced-transparency` 时自动回到原 CSS 玻璃；光学层持续 RAF 渲染，低端集显未做帧率实测
 
 ## 下一步
 
@@ -56,8 +61,13 @@ updated: 2026-11-24
 - [ ] 增加自动化冒烟测试：Feed 解析、正文抽取、AI mock、PDF、路由选择
 - [ ] 在真实窗口点击验证 AI 概览 Markdown/PDF 保存对话框（已验证按钮、IPC 与 PDF 渲染器）
 - [ ] 视反馈考虑原生全屏、画笔与 PDF 结合、笔记区位置优化
+- [ ] 在集显/低端设备实测 WebGL 光学玻璃帧率，必要时降低像素上限或增加关闭开关
 
 ## 最近变化
 
+- 2026-11-24 — 侧栏重设计：浏览/我的/资讯源/新闻源分组，统一行高与计数样式，active 左侧光条，底部同步卡片；取消行级光学玻璃，侧栏保留单块玻璃
+- 2026-11-24 — 对比 PDF-Reader 做清晰度对齐：主内容区改为不透明静态舞台，玻璃只保留在 chrome/侧栏；补宿主 `--shadow-optical`，移除抗锯齿字体设置
+- 2026-11-24 — 同步 `liquid-glass-optics` 更新：Liquid 预设 84/4、关闭接触阴影、恢复 0.90 边缘吸收，玻璃边改为细亮 rim；移除本地 shadow/rim 扩展并按新 tuning 校准表面倍率
+- 2026-11-24 — 使用 `liquid-glass-optics` skill 接入 WebGL2 光学玻璃层：标题栏/侧栏/搜索/工具栏/窗口控制真实折射与色散，主题调色板由 tokens 生成，保留 CSS fallback；详见 [history/2026-11-24.md](history/2026-11-24.md)
 - 2026-11-24 — 新增「今日热点」新闻模块、7 个新闻源与 AI 今日概览；完成当天范围、事件聚合、关键词、世界/科技分流、来源筛选、自动 AI 整理、全屏阅读与 Markdown/PDF 导出；详见 [history/2026-11-24.md](history/2026-11-24.md)
 - 2026-11-23 — 从 0 到 1 完成应用；完成阅读、缓存、代理、AI、PDF、画笔等迭代；详见 [history/2026-11-23.md](history/2026-11-23.md)

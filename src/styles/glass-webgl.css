@@ -1,0 +1,98 @@
+/* =========================================================
+   Frontier Radar — WebGL optical glass layer
+   ---------------------------------------------------------
+   Loaded after the CSS glass sheets. Every rule is gated on
+   `html.lg-webgl-ready`, which js/glass.js only sets after a
+   WebGL2 renderer is running. Without WebGL2 (or with
+   reduced-transparency) the app keeps the CSS glass look.
+
+   Registered surfaces must be transparent all the way down to
+   the canvas: the material is drawn by the shader, not by CSS.
+   ========================================================= */
+
+/* core.css keys its focus ring off --lg-ink; align it with the app theme. */
+html.lg-webgl-ready {
+  --lg-ink: #f3f5ff;
+}
+
+html.lg-webgl-ready[data-theme="light"] {
+  --lg-ink: #15171e;
+}
+
+html.lg-webgl-ready .lg-root,
+html.lg-webgl-ready .lg-app {
+  background: transparent;
+}
+
+/* Keep the content stage opaque and static, like PDF-Reader's PDF page.
+   Text over the live, animated shader environment reads soft; the chrome
+   keeps the optical material, the content keeps its contrast. */
+html.lg-webgl-ready .lg-main {
+  background:
+    radial-gradient(60% 50% at 16% 0%, var(--ambient-purple), transparent 70%),
+    radial-gradient(52% 46% at 88% 100%, var(--ambient-cyan), transparent 70%),
+    radial-gradient(42% 38% at 52% 52%, var(--ambient-blue), transparent 72%),
+    var(--bg-viewer);
+}
+
+/* The shader owns the environment now. */
+html.lg-webgl-ready .lg-ambient,
+html.lg-webgl-ready .app-grid {
+  display: none;
+}
+
+/* ---------- Titlebar ---------- */
+html.lg-webgl-ready #titlebar.lg-toolbar {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+
+html.lg-webgl-ready #titlebar.lg-toolbar::before {
+  display: none;
+}
+
+/* ---------- Sidebar ---------- */
+html.lg-webgl-ready #sidebar.lg-sidebar {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right-color: transparent;
+  box-shadow: none;
+}
+
+/* ---------- Search field ---------- */
+html.lg-webgl-ready .app-search {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: transparent;
+  box-shadow: var(--shadow-optical);
+}
+
+html.lg-webgl-ready .app-search:focus-within {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: 0 0 0 3px rgba(var(--accent-primary-rgb), 0.18), var(--shadow-optical);
+}
+
+html.lg-webgl-ready .app-search.lg-surface--interactive {
+  cursor: default;
+}
+
+html.lg-webgl-ready .app-search-input {
+  cursor: text;
+}
+
+/* ---------- Toolbar cluster / window controls ---------- */
+html.lg-webgl-ready .app-tool-cluster,
+html.lg-webgl-ready .app-tool-cluster:hover,
+html.lg-webgl-ready .lg-window-controls {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: transparent;
+  box-shadow: var(--shadow-optical);
+}

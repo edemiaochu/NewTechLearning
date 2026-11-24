@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('radar', {
+  platform: process.platform,
   sources: () => ipcRenderer.invoke('feeds:sources'),
   loadFeeds: () => ipcRenderer.invoke('feeds:load'),
   refreshFeeds: (options) => ipcRenderer.invoke('feeds:refresh', options || {}),

@@ -1,0 +1,112 @@
+/*
+ * Liquid Glass Optics — minimal host styles.
+ *
+ * Required:
+ *   - One <GlassCanvas> behind the UI.
+ *   - The content layer above it with position: relative; z-index: 1.
+ *   - Every glass surface carries .lg-surface and is registered by
+ *     <GlassSurface> (do not put a CSS backdrop-filter on it).
+ *
+ * The variables are namespaced so they can coexist with the host app.
+ * Keep the data-theme attribute in sync with the `theme` prop of GlassCanvas.
+ */
+
+:root {
+  color-scheme: light;
+  --lg-ink: #15171e;
+  --lg-ink-soft: rgba(21, 23, 30, 0.62);
+  --lg-ink-faint: rgba(21, 23, 30, 0.38);
+  --lg-line: rgba(21, 23, 30, 0.14);
+  --lg-accent: #5b63ff;
+  --lg-mono: "SF Mono", "Cascadia Code", "Roboto Mono", "JetBrains Mono",
+    Consolas, monospace;
+  --lg-fallback-surface: rgba(255, 255, 255, 0.18);
+  --lg-fallback-border: rgba(255, 255, 255, 0.45);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --lg-ink: #f3f5ff;
+  --lg-ink-soft: rgba(243, 245, 255, 0.64);
+  --lg-ink-faint: rgba(243, 245, 255, 0.4);
+  --lg-line: rgba(243, 245, 255, 0.14);
+  --lg-accent: #8f9aff;
+  --lg-fallback-surface: rgba(255, 255, 255, 0.08);
+  --lg-fallback-border: rgba(255, 255, 255, 0.18);
+}
+
+.lg-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.lg-surface {
+  position: relative;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+button.lg-surface {
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.lg-surface--interactive {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lg-surface:focus-visible {
+  outline: 2px solid var(--lg-ink);
+  outline-offset: 3px;
+}
+
+.lg-webgl-fallback {
+  position: fixed;
+  z-index: 50;
+  top: 20px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: calc(100vw - 32px);
+  padding: 11px 16px;
+  border: 1px solid rgba(255, 120, 100, 0.35);
+  border-radius: 12px;
+  background: rgba(28, 12, 12, 0.92);
+  color: #ffd9d3;
+  font-size: 11px;
+  line-height: 1.5;
+  transform: translateX(-50%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+
+.lg-webgl-fallback strong {
+  font-size: 11.5px;
+}
+
+/*
+ * CSS-only degradation. Do NOT use this styling when WebGL is working — the
+ * whole point is that the real material comes from the shader.
+ */
+.lg-no-webgl .lg-surface {
+  border: 1px solid var(--lg-fallback-border);
+  background: var(--lg-fallback-surface);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 16px 40px rgba(30, 36, 60, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}

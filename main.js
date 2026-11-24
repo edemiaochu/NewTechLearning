@@ -192,6 +192,10 @@ function createWindow() {
     show: false,
     frame: false,
     titleBarStyle: 'hidden',
+    // macOS keeps its native traffic lights; centre them in the 58px bar.
+    ...(process.platform === 'darwin'
+      ? { trafficLightPosition: { x: 18, y: 21 } }
+      : {}),
     backgroundColor,
     roundedCorners: true,
     autoHideMenuBar: true,
@@ -204,6 +208,14 @@ function createWindow() {
       spellcheck: false,
     },
   });
+
+  if (process.platform === 'darwin') {
+    try {
+      win.setWindowButtonPosition?.({ x: 18, y: 21 });
+    } catch {
+      // Older macOS/Electron builds: keep the default traffic-light position.
+    }
+  }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isHttpUrl(url)) shell.openExternal(url);

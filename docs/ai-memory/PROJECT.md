@@ -35,8 +35,9 @@ updated: 2026-11-24
 - `lib/net.js` — Chromium `net.fetch`、代理/直连 session、auto 路由探测
 - `lib/settings.js` — safeStorage Key、代理、来源路由、AI 配置
 - `lib/pdf.js` — 隐藏窗口 `printToPDF`、白底 A4 模板、AI 概览 Markdown/PDF 模板
-- `src/js/` — 渲染层状态、视图、事件、主题
-- `src/styles/` — Liquid Glass tokens/组件 + 应用层样式
+- `src/js/` — 渲染层状态、视图、事件、主题；`glass.js` 负责 WebGL 光学玻璃初始化与表面注册
+- `src/liquid-glass/` — `liquid-glass-optics` skill 的 vanilla 核心（TS 源 + 编译 JS + `core.css`）
+- `src/styles/` — Liquid Glass tokens/组件 + 应用层样式；`glass-webgl.css` 是光学层启用规则
 - `scripts/` — 图标与画笔光标生成
 - `docs/ai-memory/` — 项目记忆（本目录）
 
@@ -49,12 +50,14 @@ updated: 2026-11-24
 5. AI 精读通过 Anthropic SDK（本机 Claude Code 配置或官方）或 OpenAI 兼容 `/chat/completions`；AI 摘要存 localStorage，可独立于正文显示。
 6. AI 今日概览复用同一 AI 通道：按新闻指纹缓存 `fr.newsDigest`，打开今日热点且指纹变化时自动生成；可关闭自动整理；支持全屏阅读与 Markdown/PDF 导出。
 7. PDF 在隐藏 `BrowserWindow` 中加载白底模板后 `printToPDF`。
+8. WebGL2 光学玻璃层在渲染层独立运行：固定 `#glass-canvas` 在 UI 之后，`GlassRenderer` 每帧渲染程序化环境 + 玻璃 composite；`glass.js` 把标题栏/侧栏/搜索/工具栏簇/窗口控制注册为玻璃表面，并从当前主题 tokens 生成环境调色板。侧栏是单个玻璃表面，导航/来源行为普通 CSS 行；主内容区是不透明静态舞台，不做 WebGL 表面。
 
 ## 约定与坑
 
 - 所有网络在**主进程**完成；渲染层 CSP 禁止 `connect-src`。
 - 远端文本必须先转义再渲染；文章链接只允许 `http(s)`。
-- 颜色只能来自 `--token`；玻璃仅用于浮动操作层，正文卡片用实色表面。
+- 颜色只能来自 `--token`；玻璃仅用于浮动操作层，正文卡片用实色表面。WebGL 环境调色板也从 tokens 派生。
+- WebGL 玻璃表面必须一路透明到 canvas；覆盖层（modal/popover/toast/reader）继续用 CSS 玻璃 fallback。
 - 不要把 API Key/本机 Claude Code token 传给渲染层；Key 用 `safeStorage`。
 - 来源缓存 `updatedAt` 只有至少一个来源成功才推进，避免全失败后不重试。
 - 打开过的文章正文持久化；AI 摘要与正文缓存独立，正文失败时 AI 卡片仍显示。

@@ -237,71 +237,94 @@ export function renderSidebar() {
   );
   const newsSources = state.sources.filter((source) => source.newsSection);
 
+  const primaryNav = navItems.slice(0, 4);
+  const personalNav = navItems.slice(4);
+
+  const renderNavItem = (entry) => {
+    const active =
+      state.view === entry.view && (entry.view !== 'all' || state.sourceFilter === 'all');
+    return `<button class="nav-item${active ? ' is-active' : ''}" type="button" data-nav="${
+      entry.view
+    }" title="${esc(entry.label)}">
+      <span class="nav-icon">${icon(entry.iconName)}</span>
+      <span class="nav-label">${esc(entry.label)}</span>
+      ${entry.error ? `<span class="source-error-dot" title="${esc(entry.error)}"></span>` : ''}
+      ${entry.count != null ? `<span class="nav-count">${entry.count}</span>` : ''}
+    </button>`;
+  };
+
+  const renderSourceRow = (source, active, attr) => {
+    const error = state.feeds[source.id]?.error;
+    return `<button class="source-row${active ? ' is-active' : ''}" type="button" ${attr}="${esc(
+      source.id
+    )}" title="${esc(`${source.title} · ${source.subtitle}`)}">
+      <span class="source-mark">${esc(source.mark)}</span>
+      <span class="source-name">${esc(source.name)}</span>
+      ${error ? `<span class="source-error-dot" title="${esc(error)}"></span>` : ''}
+      <span class="source-count">${counts[source.id] || 0}</span>
+    </button>`;
+  };
+
   return `
-    <nav class="side-nav" aria-label="主要导航">
-      ${navItems
-        .map((entry) => {
-          const active =
-            state.view === entry.view && (entry.view !== 'all' || state.sourceFilter === 'all');
-          return `<button class="nav-item${active ? ' is-active' : ''}" type="button" data-nav="${
-            entry.view
-          }" title="${esc(entry.label)}">
-            <span class="nav-icon">${icon(entry.iconName)}</span>
-            <span class="nav-label">${esc(entry.label)}</span>
-            ${entry.error ? `<span class="source-error-dot" title="${esc(entry.error)}"></span>` : ''}
-            ${entry.count != null ? `<span class="nav-count">${entry.count}</span>` : ''}
-          </button>`;
-        })
-        .join('')}
-    </nav>
+    <div class="side-section side-section--nav">
+      <div class="side-label"><span>浏览</span></div>
+      <nav class="side-nav" aria-label="主要导航">
+        ${primaryNav.map(renderNavItem).join('')}
+      </nav>
+    </div>
+
+    <div class="side-section side-section--nav">
+      <div class="side-label"><span>我的</span></div>
+      <nav class="side-nav" aria-label="收藏与笔记">
+        ${personalNav.map(renderNavItem).join('')}
+      </nav>
+    </div>
 
     <div class="side-section">
       <div class="side-label"><span>资讯源</span><span>${mainSources.length}</span></div>
-      ${mainSources
-        .map((source) => {
-          const active = state.view === 'all' && state.sourceFilter === source.id;
-          const error = state.feeds[source.id]?.error;
-          return `<button class="source-row${active ? ' is-active' : ''}" type="button" data-source-filter="${esc(
-            source.id
-          )}" title="${esc(`${source.title} · ${source.subtitle}`)}">
-            <span class="source-mark">${esc(source.mark)}</span>
-            <span class="source-name">${esc(source.name)}</span>
-            ${error ? `<span class="source-error-dot" title="${esc(error)}"></span>` : ''}
-            <span class="source-count">${counts[source.id] || 0}</span>
-          </button>`;
-        })
-        .join('')}
+      <div class="side-list">
+        ${mainSources
+          .map((source) =>
+            renderSourceRow(
+              source,
+              state.view === 'all' && state.sourceFilter === source.id,
+              'data-source-filter'
+            )
+          )
+          .join('')}
+      </div>
     </div>
 
     ${
       newsSources.length
         ? `<div class="side-section">
             <div class="side-label"><span>新闻源</span><span>${newsSources.length}</span></div>
-            ${newsSources
-              .map((source) => {
-                const active = state.view === 'news' && state.sourceFilter === source.id;
-                const error = state.feeds[source.id]?.error;
-                return `<button class="source-row${active ? ' is-active' : ''}" type="button" data-news-source="${esc(
-                  source.id
-                )}" title="${esc(`${source.title} · ${source.subtitle}`)}">
-                  <span class="source-mark">${esc(source.mark)}</span>
-                  <span class="source-name">${esc(source.name)}</span>
-                  ${error ? `<span class="source-error-dot" title="${esc(error)}"></span>` : ''}
-                  <span class="source-count">${counts[source.id] || 0}</span>
-                </button>`;
-              })
-              .join('')}
+            <div class="side-list">
+              ${newsSources
+                .map((source) =>
+                  renderSourceRow(
+                    source,
+                    state.view === 'news' && state.sourceFilter === source.id,
+                    'data-news-source'
+                  )
+                )
+                .join('')}
+            </div>
           </div>`
         : ''
     }
 
     <div class="side-footer">
-      <div class="sync-row">
+      <div class="side-footer-head">
         <span class="sync-dot ${syncDotClass}"></span>
-        <span>${esc(syncLabel(state.updatedAt))}</span>
+        <span class="side-footer-title">${esc(syncLabel(state.updatedAt))}</span>
       </div>
-      <div>${unread ? `${unread} 条未读 · ` : ''}${state.settings.autoRefresh ? '每 30 分钟自动同步' : '手动同步'}</div>
-      <div style="opacity:.6">本地缓存 · 离线可读 · v${esc(state.appInfo.version || '1.0.0')}</div>
+      <div class="side-footer-meta">${unread ? `${unread} 条未读 · ` : ''}${
+        state.settings.autoRefresh ? '每 30 分钟自动同步' : '手动同步'
+      }</div>
+      <div class="side-footer-meta is-faint">本地缓存 · 离线可读 · v${esc(
+        state.appInfo.version || '1.0.0'
+      )}</div>
     </div>
   `;
 }
@@ -1931,6 +1954,7 @@ export function renderThemePopover(position = {}) {
 
 export function renderSettingsModal() {
   const settings = state.settings;
+  const glassBackground = state.glassBackground || 'clean';
   const readerFontSize = state.ui.readerFontSize || 17;
   const aiProvider = ['anthropic', 'deepseek', 'custom', 'local-claude'].includes(
     settings.aiProvider
@@ -2145,6 +2169,28 @@ export function renderSettingsModal() {
           <h3>${icon('palette')} 外观</h3>
           <p class="settings-desc">六套主题共享同一套玻璃物理规则，只替换表面、主色与环境光。</p>
           <div class="theme-grid">${themeOptions(state.theme, 'app-theme-option')}</div>
+          <div class="settings-inline glass-bg-setting">
+            <label class="settings-inline-label">光学玻璃背景
+              <span>WebGL 光学层的环境 · 纯色没有可折射的细节</span>
+            </label>
+            <div class="proxy-modes" role="group" aria-label="光学玻璃背景">
+              ${[
+                ['clean', '柔光渐变'],
+                ['specimen', '光学标定'],
+                ['solid', '主题纯色'],
+              ]
+                .map(
+                  ([value, label]) =>
+                    `<button class="proxy-mode${
+                      glassBackground === value ? ' is-active' : ''
+                    }" type="button" data-action="glass-background" data-glass-background="${value}">${esc(
+                      label
+                    )}</button>`
+                )
+                .join('')}
+            </div>
+          </div>
+          <p class="settings-note">柔光渐变跟随当前主题生成大色场；光学标定显示同心环、点阵与制图线，折射最明显；纯色只保留 tint、边缘高光与指针高光。</p>
           <div class="settings-inline font-setting-row">
             <label class="settings-inline-label" for="settings-font-slider">阅读字号
               <span>仅影响文章正文 · <span id="settings-font-value">${readerFontSize}px</span></span>

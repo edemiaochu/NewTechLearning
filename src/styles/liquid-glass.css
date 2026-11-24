@@ -34,7 +34,6 @@
   line-height: 1.4;
   color: var(--text-primary);
   background: var(--bg-app);
-  -webkit-font-smoothing: antialiased;
 }
 
 .lg-app {
