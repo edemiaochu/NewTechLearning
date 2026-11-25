@@ -53,15 +53,17 @@ updated: 2026-11-24
 5. AI 精读通过 Anthropic SDK（本机 Claude Code 配置或官方）或 OpenAI 兼容 `/chat/completions`；AI 摘要存 localStorage，可独立于正文显示。
 6. AI 今日概览复用同一 AI 通道：按新闻指纹缓存 `fr.newsDigest`，打开今日热点且指纹变化时自动生成；可关闭自动整理；支持全屏阅读与 Markdown/PDF 导出。
 7. PDF 在隐藏 `BrowserWindow` 中加载白底模板后 `printToPDF`。
-8. WebGL2 光学玻璃层在渲染层独立运行：固定 `#glass-canvas` 在 UI 之后，`GlassRenderer` 每帧渲染程序化环境 + 玻璃 composite；`glass.js` 把标题栏/侧栏/搜索/导航与操作工具栏簇注册为玻璃表面（窗口控制为无外框图标按钮，不注册），并从当前主题 tokens 生成环境调色板。侧栏是单个玻璃表面，导航/来源行为普通 CSS 行；主内容区是不透明静态舞台，不做 WebGL 表面。
-9. 工作台壳层：工具栏为单行分组胶囊（导航组/操作组），侧栏可折叠并拖拽调宽；主题面板提供 8 套主题、玻璃强度、灰度与光学材质参数，状态存 localStorage。
+8. WebGL2 光学玻璃层在渲染层独立运行：固定 `#glass-canvas` 在 UI 之后，`GlassRenderer` 每帧渲染程序化环境 + 玻璃 composite；`glass.js` 把标题栏/侧栏/搜索/导航与操作工具栏簇注册为玻璃表面（窗口控制为无外框图标按钮，不注册）。光学环境跟随核心的 dark/light 模型；侧栏是单个玻璃表面，导航/来源行为普通 CSS 行；主内容区是不透明静态舞台，不做 WebGL 表面。核心支持 18 项材质/阴影/rim/反射参数、`clean/specimen/solid/image` 背景与可选的背景漂移。
+9. 工作台壳层：工具栏为单行分组胶囊（导航组/操作组），侧栏可折叠并拖拽调宽；主题面板提供 8 套主题、玻璃强度、灰度、光学开关、4 种背景、背景漂移与 18 项材质参数；设置「外观」与主题面板共用同一份状态。
 10. 词典：阅读器双击英文单词，渲染层经 IPC 请求主进程；主进程并行抓取 Cambridge 英英与英汉页面，解析后按词缓存 30 天；英英失败回退 Wiktionary，英汉缺失或断网时使用随应用打包的 ECDICT 离线词库（MIT）。Oxford 未接入（无免费 API 且 robots 不允许自动抓取）。
 
 ## 约定与坑
 
 - 所有网络在**主进程**完成；渲染层 CSP 禁止 `connect-src`。
 - 远端文本必须先转义再渲染；文章链接只允许 `http(s)`。
-- 颜色只能来自 `--token`；玻璃仅用于浮动操作层，正文卡片用实色表面。WebGL 环境调色板也从 tokens 派生。
+- 颜色只能来自 `--token`；玻璃仅用于浮动操作层，正文卡片用实色表面。WebGL 环境只分 dark/light 两套，由光学核心决定；不要试图在宿主里改 shader 调色板。
+- 光学开关关闭时销毁控制器并移除 `lg-webgl-ready`；CSS 玻璃立刻恢复。重新开启会重建控制器并重新注册表面。
+- `image` 背景使用 data URL（`src/js/glass-backgrounds.js`），不要改成 `file://` 路径：Electron `file://` 下 WebGL 会拒绝跨源纹理。
 - WebGL 玻璃表面必须一路透明到 canvas；覆盖层（modal/popover/toast/reader）继续用 CSS 玻璃 fallback。
 - 不要把 API Key/本机 Claude Code token 传给渲染层；Key 用 `safeStorage`。
 - 来源缓存 `updatedAt` 只有至少一个来源成功才推进，避免全失败后不重试。
@@ -93,3 +95,5 @@ updated: 2026-11-24
 - 第一次打开文章仍需网络；成功打开后才进入正文缓存。
 - AI API 请求目前仍走全局代理，不受按来源直连影响。
 - 词典依赖 Cambridge 页面结构；Oxford 无免费公开接口且 robots 禁止自动抓取，因此未接入。
+- 主内容是不透明静态舞台，`image` 光学背景只在工具栏/侧栏/搜索等 chrome 玻璃中可见。
+- 光学环境只有 dark/light 两套，八套主题的折射环境色不再各自不同。

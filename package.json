@@ -14,7 +14,8 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "icon": "node scripts/make-icon.js",
-    "cursor": "node scripts/make-cursors.js"
+    "cursor": "node scripts/make-cursors.js",
+    "glass-bg": "node scripts/build-glass-backgrounds.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

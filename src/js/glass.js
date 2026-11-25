@@ -8,20 +8,82 @@
  * opaque/static (like PDF-Reader's PDF page). CSS overlay layers (modals,
  * popovers, reader) keep the CSS glass fallback.
  *
- * The environment palette is derived from the app's own design tokens, so all
- * six themes (aurora/ocean/forest/ember/violet/light) keep their identity.
+ * The material core comes from the installed `liquid-glass-optics` skill.
+ * The optical environment follows the core's Dark/Light theme model; the
+ * user-facing theme tokens stay in charge of the CSS surfaces and content.
  */
 import { attachGlassSurface, createLiquidGlass } from '../liquid-glass/vanilla.js';
 import { PRESETS } from '../liquid-glass/presets.js';
+import { DEFAULT_GLASS_STYLE } from '../liquid-glass/types.js';
+import { GLASS_BACKGROUND_IMAGES } from './glass-backgrounds.js';
 
 const LIGHT_THEME = 'light';
-const GLASS_BACKGROUNDS = ['clean', 'specimen', 'solid'];
-const CSS_TOKEN = {
-  base: '--bg-app',
-  accent: '--accent-primary',
-  accentAlt: '--accent-secondary',
-  ambientBlue: '--ambient-blue',
+
+export const GLASS_BACKGROUND_MODES = ['clean', 'specimen', 'solid', 'image'];
+
+export const GLASS_BACKGROUND_LABELS = {
+  clean: '柔光渐变',
+  specimen: '光学标定',
+  solid: '主题纯色',
+  image: '内置图片',
 };
+
+/** @typedef {typeof GLASS_PARAM_SECTIONS[number]['fields'][number]} GlassParamField */
+
+export const GLASS_PARAM_SECTIONS = [
+  {
+    id: 'material',
+    title: '材质',
+    hint: 'OPTICAL',
+    fields: [
+      { key: 'ior', label: '折射率', min: 1, max: 2, step: 0.01, decimals: 2 },
+      { key: 'thickness', label: '厚度', min: 0, max: 100, step: 1, decimals: 0, unit: 'px' },
+      { key: 'dispersion', label: '色散', min: 0, max: 1, step: 0.01, decimals: 2 },
+      { key: 'roughness', label: '粗糙度', min: 0, max: 1, step: 0.01, decimals: 2 },
+      { key: 'bevel', label: '倒角', min: 0, max: 48, step: 1, decimals: 0, unit: 'px' },
+    ],
+  },
+  {
+    id: 'shadow',
+    title: '接触阴影',
+    hint: 'SHADOW',
+    fields: [
+      { key: 'shadowLight', label: '亮色强度', min: 0, max: 0.5, step: 0.01, decimals: 2 },
+      { key: 'shadowDark', label: '暗色强度', min: 0, max: 0.5, step: 0.01, decimals: 2 },
+      { key: 'shadowSoftness', label: '柔和度', min: 4, max: 60, step: 1, decimals: 0, unit: 'px' },
+      { key: 'shadowOffsetX', label: '偏移 X', min: -30, max: 30, step: 1, decimals: 0, unit: 'px' },
+      { key: 'shadowOffsetY', label: '偏移 Y', min: -30, max: 30, step: 1, decimals: 0, unit: 'px' },
+    ],
+  },
+  {
+    id: 'rim',
+    title: '边缘高光',
+    hint: 'RIM',
+    fields: [
+      { key: 'rimWidth', label: '宽度', min: 0.5, max: 10, step: 0.1, decimals: 1, unit: 'px' },
+      { key: 'rimBase', label: '基础强度', min: 0, max: 1.5, step: 0.01, decimals: 2 },
+      { key: 'rimFacing', label: '指向光源', min: 0, max: 2, step: 0.01, decimals: 2 },
+      { key: 'rimTop', label: '顶边', min: 0, max: 1, step: 0.01, decimals: 2 },
+      { key: 'rimStrength', label: '总强度', min: 0, max: 3, step: 0.01, decimals: 2 },
+    ],
+  },
+  {
+    id: 'light',
+    title: '高光与反射',
+    hint: 'HIGHLIGHT',
+    fields: [
+      { key: 'specularStrength', label: '指针高光', min: 0, max: 3, step: 0.01, decimals: 2 },
+      { key: 'fresnelStrength', label: 'Fresnel', min: 0, max: 3, step: 0.01, decimals: 2 },
+      { key: 'innerGlowStrength', label: '内层辉光', min: 0, max: 3, step: 0.01, decimals: 2 },
+    ],
+  },
+];
+
+export const GLASS_PARAM_FIELDS = GLASS_PARAM_SECTIONS.flatMap(
+  (section) => section.fields
+);
+
+const SURFACE_TINT = '#ffffff';
 
 const STATIC_SURFACES = [
   {
@@ -29,9 +91,10 @@ const STATIC_SURFACES = [
     config: {
       radius: 0,
       layer: 1,
-      tintOpacity: 0.3,
-      bevelScale: 1.1,
-      thicknessScale: 1.05,
+      tintOpacity: 0.16,
+      bevelScale: 0.25,
+      thicknessScale: 0.45,
+      refractionScale: 1,
     },
   },
   {
@@ -39,19 +102,21 @@ const STATIC_SURFACES = [
     config: {
       radius: 0,
       layer: 1,
-      tintOpacity: 0.26,
-      bevelScale: 1.1,
-      thicknessScale: 1.05,
+      tintOpacity: 0.16,
+      bevelScale: 0.25,
+      thicknessScale: 0.45,
+      refractionScale: 1,
     },
   },
   {
     selector: '.app-search',
     config: {
-      radius: 12,
-      layer: 3,
-      tintOpacity: 0.18,
+      radius: 16,
+      layer: 2,
+      tintOpacity: 0.16,
       bevelScale: 0.55,
       thicknessScale: 0.7,
+      refractionScale: 1.15,
       interactive: true,
     },
   },
@@ -59,10 +124,11 @@ const STATIC_SURFACES = [
     selector: '.app-tool-cluster',
     config: {
       radius: 16,
-      layer: 3,
+      layer: 2,
       tintOpacity: 0.16,
       bevelScale: 0.55,
       thicknessScale: 0.7,
+      refractionScale: 1.15,
       interactive: true,
     },
   },
@@ -70,31 +136,29 @@ const STATIC_SURFACES = [
     selector: '.app-nav-cluster',
     config: {
       radius: 16,
-      layer: 3,
+      layer: 2,
       tintOpacity: 0.16,
       bevelScale: 0.55,
       thicknessScale: 0.7,
+      refractionScale: 1.15,
       interactive: true,
     },
   },
 ];
 
 let controller = null;
-let surfaceTint = '#ffffff';
+let surfaceCleanups = [];
+let themeObserver = null;
 let backgroundMode = 'clean';
-let glassParams = { ...PRESETS.Liquid };
+let backgroundAnimation = false;
+let glassParams = normalizeGlassParams(null);
 
-/** Material knobs the bundled optics core understands. */
-export const GLASS_PARAM_FIELDS = [
-  { key: 'ior', label: '折射率', min: 1, max: 2, step: 0.01 },
-  { key: 'thickness', label: '厚度', min: 0, max: 140, step: 1, unit: 'px' },
-  { key: 'dispersion', label: '色散', min: 0, max: 1, step: 0.01 },
-  { key: 'roughness', label: '粗糙度', min: 0, max: 1, step: 0.01 },
-  { key: 'bevel', label: '倒角', min: 0, max: 60, step: 1, unit: 'px' },
-];
+function defaults() {
+  return { ...PRESETS.Liquid, ...DEFAULT_GLASS_STYLE };
+}
 
 export function normalizeGlassParams(input) {
-  const next = { ...PRESETS.Liquid };
+  const next = defaults();
   if (input && typeof input === 'object') {
     for (const field of GLASS_PARAM_FIELDS) {
       const value = Number(input[field.key]);
@@ -106,91 +170,153 @@ export function normalizeGlassParams(input) {
   return next;
 }
 
-export function getGlassParams() {
-  return glassParams;
+export function formatGlassParam(field, value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return number.toFixed(field.decimals ?? 2);
 }
 
+export function getGlassParams() {
+  return { ...glassParams };
+}
+
+/** Apply material/lighting values live; returns the clamped set. */
 export function setGlassParams(params) {
   glassParams = normalizeGlassParams(params);
   controller?.setParams(glassParams);
-  return glassParams;
+  return { ...glassParams };
 }
 
 function normalizeBackground(mode) {
-  return GLASS_BACKGROUNDS.includes(mode) ? mode : 'clean';
-}
-
-function baseCssColor() {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(CSS_TOKEN.base)
-    .trim();
-  return value || 'transparent';
+  return GLASS_BACKGROUND_MODES.includes(mode) ? mode : 'clean';
 }
 
 function currentTheme() {
   return document.documentElement.dataset.theme === LIGHT_THEME ? 'light' : 'dark';
 }
 
-let colorCanvas = null;
-
-/** Resolve any CSS colour (hex, rgb(), rgba(), named) to linear-ish 0..1 RGB. */
-function parseColor(value) {
-  if (!value) return [0, 0, 0];
-  if (!colorCanvas) {
-    colorCanvas = document.createElement('canvas');
-    colorCanvas.width = 1;
-    colorCanvas.height = 1;
-  }
-  const ctx = colorCanvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return [0, 0, 0];
-  ctx.clearRect(0, 0, 1, 1);
-  ctx.fillStyle = '#000000';
-  ctx.fillStyle = value;
-  ctx.fillRect(0, 0, 1, 1);
-  const data = ctx.getImageData(0, 0, 1, 1).data;
-  return [data[0] / 255, data[1] / 255, data[2] / 255];
+function currentBackgroundImage() {
+  return currentTheme() === 'light'
+    ? GLASS_BACKGROUND_IMAGES.light
+    : GLASS_BACKGROUND_IMAGES.dark;
 }
 
-function tokenColor(name) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name);
-  return parseColor(value.trim());
-}
-
-function mix(a, b, amount) {
-  const t = Math.min(Math.max(amount, 0), 1);
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-}
-
-/** Map the active theme tokens into the shader's environment palette. */
-function readPalette() {
-  const isLight = currentTheme() === 'light';
-  const base = tokenColor(CSS_TOKEN.base);
-  const accent = tokenColor(CSS_TOKEN.accent);
-  const accentAlt = tokenColor(CSS_TOKEN.accentAlt);
-  const ambientBlue = tokenColor(CSS_TOKEN.ambientBlue);
-  const white = [1, 1, 1];
-  const black = [0, 0, 0];
-
-  return {
-    baseTop: isLight ? mix(base, white, 0.12) : mix(base, white, 0.06),
-    baseBot: isLight ? mix(base, [0.86, 0.88, 0.93], 0.22) : mix(base, black, 0.58),
-    blobA: mix(accent, base, 0.18),
-    blobB: mix(accentAlt, base, 0.22),
-    blobC: mix(accentAlt, base, 0.36),
-    blobD: mix(accent, base, 0.44),
-    blobE: mix(ambientBlue, base, 0.3),
-    stageGlow: mix(accent, base, 0.16),
-    cornerGlow: mix(accentAlt, base, 0.26),
-    ink: isLight ? [0.075, 0.08, 0.11] : [0.93, 0.95, 1.0],
-    blobStrength: isLight ? 0.3 : 0.26,
-  };
+function baseCssColor() {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg-app')
+    .trim();
+  return value || 'transparent';
 }
 
 function syncTheme() {
   if (!controller) return;
   controller.setTheme(currentTheme());
-  controller.setPalette(readPalette());
+  if (backgroundMode === 'image') {
+    controller.setBackgroundImage(currentBackgroundImage());
+  }
   if (backgroundMode === 'solid') controller.setBackgroundColor(baseCssColor());
+}
+
+function watchTheme() {
+  if (themeObserver) return;
+  themeObserver = new MutationObserver(syncTheme);
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+}
+
+function detachSurfaces() {
+  for (const detach of surfaceCleanups) detach();
+  surfaceCleanups = [];
+}
+
+function attachSurfaces() {
+  detachSurfaces();
+  for (const definition of STATIC_SURFACES) {
+    document.querySelectorAll(definition.selector).forEach((element) => {
+      const detach = attachGlassSurface(element, {
+        ...definition.config,
+        tint: SURFACE_TINT,
+      });
+      surfaceCleanups.push(detach);
+    });
+  }
+}
+
+/**
+ * Boot the renderer. Safe to call more than once; returns false when the
+ * platform should keep the existing CSS-only glass (optical off, reduced
+ * transparency, or no WebGL2).
+ */
+export function initGlass(initialBackground = 'clean', initialParams = null, options = {}) {
+  if (controller) return true;
+  if (options.enabled === false) {
+    document.documentElement.classList.add('lg-optical-off');
+    return false;
+  }
+
+  const reduceTransparency = window.matchMedia?.('(prefers-reduced-transparency: reduce)').matches;
+  if (reduceTransparency) {
+    document.documentElement.classList.add('lg-optical-off');
+    return false;
+  }
+
+  const canvas = document.getElementById('glass-canvas');
+  if (!canvas) return false;
+
+  backgroundMode = normalizeBackground(initialBackground);
+  glassParams = normalizeGlassParams(initialParams);
+  backgroundAnimation = !!options.animation;
+
+  controller = createLiquidGlass({
+    canvas,
+    params: glassParams,
+    theme: currentTheme(),
+    background: backgroundMode,
+    backgroundImage: backgroundMode === 'image' ? currentBackgroundImage() : undefined,
+    backgroundColor: backgroundMode === 'solid' ? baseCssColor() : undefined,
+    backgroundAnimation,
+    onError: (error) => console.warn('[glass] WebGL2 unavailable, keeping CSS glass.', error),
+  });
+  if (!controller) {
+    document.documentElement.classList.add('lg-optical-off');
+    return false;
+  }
+
+  document.documentElement.classList.remove('lg-optical-off');
+  document.documentElement.classList.add('lg-webgl-ready');
+
+  attachSurfaces();
+  watchTheme();
+
+  return true;
+}
+
+/** Tear the renderer down and fall back to the CSS glass immediately. */
+export function destroyGlass() {
+  detachSurfaces();
+  controller?.destroy();
+  controller = null;
+  document.documentElement.classList.remove('lg-webgl-ready');
+  document.documentElement.classList.add('lg-optical-off');
+}
+
+/** Runtime on/off switch used by the appearance panel and settings. */
+export function setGlassEnabled(enabled) {
+  if (!enabled) {
+    destroyGlass();
+    return false;
+  }
+  if (controller) return true;
+  return initGlass(backgroundMode, glassParams, {
+    enabled: true,
+    animation: backgroundAnimation,
+  });
+}
+
+export function isGlassEnabled() {
+  return !!controller;
 }
 
 /** Switch the optical environment while the app is running. */
@@ -199,62 +325,14 @@ export function applyGlassBackground(mode) {
   backgroundMode = next;
   if (!controller) return next;
   controller.setBackground(next);
+  if (next === 'image') controller.setBackgroundImage(currentBackgroundImage());
   if (next === 'solid') controller.setBackgroundColor(baseCssColor());
   return next;
 }
 
-function surfaceConfig(definition) {
-  return { ...definition.config, tint: surfaceTint };
-}
-
-function watchTheme() {
-  new MutationObserver(syncTheme).observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-theme'],
-  });
-}
-
-/**
- * Boot the renderer. Safe to call once; returns false when the platform should
- * keep the existing CSS-only glass (reduced transparency or no WebGL2).
- */
-export function initGlass(initialBackground = 'clean', initialParams = null) {
-  if (controller) return true;
-
-  const reduceTransparency = window.matchMedia?.('(prefers-reduced-transparency: reduce)').matches;
-  if (reduceTransparency) return false;
-
-  const canvas = document.getElementById('glass-canvas');
-  if (!canvas) return false;
-
-  backgroundMode = normalizeBackground(initialBackground);
-  glassParams = normalizeGlassParams(initialParams);
-
-  controller = createLiquidGlass({
-    canvas,
-    params: glassParams,
-    theme: currentTheme(),
-    palette: readPalette(),
-    background: backgroundMode,
-    backgroundColor: backgroundMode === 'solid' ? baseCssColor() : undefined,
-    onError: (error) => console.warn('[glass] WebGL2 unavailable, keeping CSS glass.', error),
-  });
-  if (!controller) return false;
-
-  document.documentElement.classList.add('lg-webgl-ready');
-
-  const tintToken = getComputedStyle(document.documentElement)
-    .getPropertyValue('--glass-optics-tint')
-    .trim();
-  if (/^#[0-9a-f]{3,8}$/i.test(tintToken)) surfaceTint = tintToken;
-
-  for (const definition of STATIC_SURFACES) {
-    document.querySelectorAll(definition.selector).forEach((element) => {
-      attachGlassSurface(element, surfaceConfig(definition));
-    });
-  }
-
-  watchTheme();
-
-  return true;
+/** Drift the procedural colour fields (off by default). */
+export function applyGlassAnimation(enabled) {
+  backgroundAnimation = !!enabled;
+  controller?.setBackgroundAnimation(backgroundAnimation);
+  return backgroundAnimation;
 }

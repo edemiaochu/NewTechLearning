@@ -10,12 +10,13 @@
  */
 import { GlassRenderer } from "./renderer.js";
 import { glassRegistry } from "./registry.js";
+import { backgroundImageFor, } from "./backgroundImages.js";
 /**
  * Starts the WebGL renderer. Returns null if WebGL2 is unavailable; in that
  * case the `lg-no-webgl` class is set so `core.css` can provide a fallback.
  * Call `destroy()` on page/route teardown.
  */
-export function createLiquidGlass({ canvas, params, theme, background = "clean", backgroundImage, backgroundColor, palette, onError, }) {
+export function createLiquidGlass({ canvas, params, theme, background = "clean", backgroundImage, backgroundImagePreset = null, backgroundColor, backgroundAnimation = false, onError, }) {
     const addedCanvasClass = !canvas.classList.contains("lg-canvas");
     if (addedCanvasClass)
         canvas.classList.add("lg-canvas");
@@ -23,38 +24,60 @@ export function createLiquidGlass({ canvas, params, theme, background = "clean",
         const renderer = new GlassRenderer(canvas, glassRegistry);
         renderer.setParams(params);
         renderer.setTheme(theme, true);
-        if (palette)
-            renderer.setPalette(palette);
         renderer.setBackground(background);
         renderer.setBackgroundImage(backgroundImage ?? null);
         if (backgroundColor)
             renderer.setBackgroundColor(backgroundColor);
-        renderer.start();
+        renderer.setBackgroundAnimation(backgroundAnimation);
         let destroyed = false;
+        let currentTheme = theme;
+        let imagePreset = backgroundImagePreset;
+        const applyImagePreset = () => {
+            if (destroyed || !imagePreset)
+                return;
+            renderer.setBackgroundImage(backgroundImageFor(imagePreset, currentTheme));
+            renderer.setBackground("image");
+        };
+        applyImagePreset();
+        renderer.start();
         return {
             setParams(next) {
                 if (!destroyed)
                     renderer.setParams(next);
             },
             setTheme(next, immediate = false) {
-                if (!destroyed)
-                    renderer.setTheme(next, immediate);
-            },
-            setPalette(next) {
-                if (!destroyed)
-                    renderer.setPalette(next);
+                if (destroyed)
+                    return;
+                currentTheme = next;
+                renderer.setTheme(next, immediate);
+                applyImagePreset();
             },
             setBackground(mode) {
-                if (!destroyed)
-                    renderer.setBackground(mode);
+                if (destroyed)
+                    return;
+                renderer.setBackground(mode);
+                if (mode === "image")
+                    applyImagePreset();
             },
             setBackgroundImage(source) {
-                if (!destroyed)
-                    renderer.setBackgroundImage(source);
+                if (destroyed)
+                    return;
+                imagePreset = null;
+                renderer.setBackgroundImage(source);
+            },
+            setBackgroundImagePreset(id) {
+                if (destroyed)
+                    return;
+                imagePreset = id;
+                applyImagePreset();
             },
             setBackgroundColor(color) {
                 if (!destroyed)
                     renderer.setBackgroundColor(color);
+            },
+            setBackgroundAnimation(enabled) {
+                if (!destroyed)
+                    renderer.setBackgroundAnimation(enabled);
             },
             destroy() {
                 if (destroyed)

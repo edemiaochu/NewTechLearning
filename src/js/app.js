@@ -27,6 +27,8 @@ import {
   applyGlassAlpha,
   applyThemeGray,
   setGlassParams as persistGlassParams,
+  setGlassAnimation,
+  setOpticalGlass,
   setDictionaryOn,
   LS,
 } from './state.js';
@@ -57,9 +59,12 @@ import {
   clampText,
 } from './ui.js';
 import {
+  applyGlassAnimation,
   applyGlassBackground,
+  formatGlassParam,
   initGlass,
   normalizeGlassParams,
+  setGlassEnabled,
   setGlassParams as applyGlassParams,
   GLASS_PARAM_FIELDS,
 } from './glass.js';
@@ -1858,18 +1863,17 @@ function toggleThemePopover() {
 }
 
 function syncThemePanel() {
-  const popover = els.overlay.querySelector('.theme-popover');
-  if (!popover) return;
   const grayTheme = state.theme === 'black' || state.theme === 'graphite';
-  const row = popover.querySelector('[data-theme-gray]')?.closest('.theme-slider-row');
-  const input = popover.querySelector('[data-theme-gray]');
-  const output = popover.querySelector('[data-theme-gray-value]');
-  if (row) row.classList.toggle('is-disabled', !grayTheme);
-  if (input) {
+  const value = grayTheme ? state.themeGray[state.theme] ?? 3 : 3;
+  els.overlay.querySelectorAll('[data-theme-gray]').forEach((input) => {
+    const row = input.closest('.theme-slider-row, .font-setting-row');
+    if (row) row.classList.toggle('is-disabled', !grayTheme);
     input.disabled = !grayTheme;
-    input.value = String(grayTheme ? state.themeGray[state.theme] : 3);
-  }
-  if (output) output.textContent = grayTheme ? String(state.themeGray[state.theme]) : '—';
+    if (input !== document.activeElement) input.value = String(value);
+  });
+  els.overlay.querySelectorAll('[data-theme-gray-value]').forEach((output) => {
+    output.textContent = grayTheme ? String(value) : '—';
+  });
 }
 
 function chooseTheme(theme) {
@@ -1879,8 +1883,8 @@ function chooseTheme(theme) {
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-checked', String(active));
   });
-  // Keep the theme panel open so the grayscale/glass knobs stay reachable.
-  if (state.ui.themeOpen) syncThemePanel();
+  // Keep the panels open so the grayscale/glass knobs stay reachable.
+  syncThemePanel();
   toast(`已切换到「${themeLabel(theme)}」主题`);
 }
 
@@ -1906,8 +1910,42 @@ function chooseGlassBackground(mode) {
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-checked', String(active));
   });
-  const labels = { clean: '柔光渐变', specimen: '光学标定', solid: '主题纯色' };
+  const labels = {
+    clean: '柔光渐变',
+    specimen: '光学标定',
+    solid: '主题纯色',
+    image: '内置图片',
+  };
   toast(`光学玻璃背景：${labels[next] || next}`);
+}
+
+function toggleOpticalGlass(enabled) {
+  const next = setOpticalGlass(enabled);
+  const ready = setGlassEnabled(next);
+  document.querySelectorAll('[data-optical-toggle]').forEach((input) => {
+    input.checked = next;
+    const label = input.closest('.check-toggle, .theme-toggle-switch');
+    const text = label?.querySelector('span');
+    if (text) text.textContent = next ? '开启' : '关闭';
+  });
+  if (next && !ready) {
+    toast('当前环境不支持 WebGL2 或已降低透明度，保留 CSS 玻璃', 'warn');
+    return;
+  }
+  toast(next ? '光学折射玻璃已开启' : '光学折射玻璃已关闭，使用 CSS 玻璃');
+}
+
+function toggleGlassAnimation(enabled) {
+  const next = setGlassAnimation(enabled);
+  applyGlassAnimation(next);
+  document.querySelectorAll('[data-glass-animation]').forEach((input) => {
+    input.checked = next;
+    const text = input
+      .closest('.check-toggle, .theme-toggle-switch')
+      ?.querySelector('span');
+    if (text) text.textContent = next ? '开启' : '关闭';
+  });
+  toast(next ? '背景漂移已开启' : '背景漂移已关闭');
 }
 
 function setGlassAlpha(value) {
@@ -1922,21 +1960,34 @@ function setGlassAlpha(value) {
 function setThemeGray(value) {
   const next = applyThemeGray(value);
   if (next == null) return;
-  const output = els.overlay.querySelector('[data-theme-gray-value]');
-  if (output) output.textContent = String(next);
+  els.overlay.querySelectorAll('[data-theme-gray-value]').forEach((output) => {
+    output.textContent = String(next);
+  });
+  els.overlay.querySelectorAll('[data-theme-gray]').forEach((input) => {
+    if (input !== document.activeElement) input.value = String(next);
+  });
 }
 
 function measureParamsPosition() {
   const panel = els.overlay.querySelector('.theme-popover');
-  const width = 380;
+  const width = 568;
   if (!panel) {
     return { top: themePosition.top, right: Math.max(12, themePosition.right + 358) };
   }
   const rect = panel.getBoundingClientRect();
+  if (window.innerWidth - rect.right - width - 10 >= 12) {
+    return {
+      top: rect.top,
+      right: Math.max(12, window.innerWidth - rect.right - width - 10),
+    };
+  }
   if (rect.left - width - 10 >= 12) {
     return { top: rect.top, right: Math.max(12, window.innerWidth - rect.left + 10) };
   }
-  return { top: rect.bottom + 10, right: Math.max(12, window.innerWidth - rect.right) };
+  return {
+    top: rect.bottom + 10,
+    right: Math.max(12, window.innerWidth - rect.right),
+  };
 }
 
 function toggleGlassParams(force) {
@@ -1974,7 +2025,7 @@ function updateGlassParams() {
     const output = els.overlay.querySelector(
       `[data-glass-param-value="${field.key}"]`
     );
-    if (output) output.textContent = String(normalized[field.key]);
+    if (output) output.textContent = formatGlassParam(field, normalized[field.key]);
   }
 }
 
@@ -2109,12 +2160,16 @@ function handleDocumentClick(event) {
       return;
     }
     if (action === 'close-settings') {
+      // The settings overlay carries data-action="close-settings", so a click
+      // anywhere inside the modal resolves to it. Only the backdrop or an
+      // explicit close button should close; inner controls (theme grid,
+      // switches, sliders) must keep bubbling to their own handlers.
       if (event.target === actionEl || actionEl.tagName === 'BUTTON') {
         event.preventDefault();
         state.ui.modal = null;
         renderOverlayUI();
+        return;
       }
-      return;
     }
     switch (action) {
       case 'save': {
@@ -2269,6 +2324,23 @@ function handleDocumentClick(event) {
         event.preventDefault();
         toggleGlassParams(true);
         return;
+      case 'open-glass-params': {
+        event.preventDefault();
+        const rect = els.themeBtn.getBoundingClientRect();
+        themePosition = {
+          top: rect.bottom + 8,
+          right: Math.max(12, window.innerWidth - rect.right),
+        };
+        state.ui.modal = null;
+        state.ui.fontOpen = false;
+        state.ui.themeOpen = true;
+        state.ui.glassParamsOpen = true;
+        setFontButtonActive();
+        renderOverlayUI();
+        paramsPosition = measureParamsPosition();
+        renderOverlayUI();
+        return;
+      }
       case 'close-glass-params':
         event.preventDefault();
         toggleGlassParams(false);
@@ -2423,6 +2495,12 @@ function handleDocumentChange(event) {
     if (!enabled) closeDictionary();
     if (state.ui.activeItem) refreshReaderContent();
     toast(enabled ? '双击英文查词已开启' : '双击英文查词已关闭');
+  }
+  if (event.target.matches('[data-optical-toggle]')) {
+    toggleOpticalGlass(!!event.target.checked);
+  }
+  if (event.target.matches('[data-glass-animation]')) {
+    toggleGlassAnimation(!!event.target.checked);
   }
 }
 
@@ -2626,7 +2704,10 @@ async function boot() {
 
   applyTheme(state.theme);
   renderAll();
-  initGlass(state.glassBackground, state.glassParams);
+  initGlass(state.glassBackground, state.glassParams, {
+    enabled: state.opticalGlass !== false,
+    animation: state.glassAnimation,
+  });
   scheduleAutoRefresh();
 
   const hasItems = allItems().length > 0;

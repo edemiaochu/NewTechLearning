@@ -11,13 +11,11 @@
 import { GlassRenderer } from "./renderer";
 import { glassRegistry } from "./registry";
 import type { GlassConfig } from "./registry";
-import type {
-  BackgroundImageSource,
-  BackgroundMode,
-  GlassPalette,
-  GlassParams,
-  Theme,
-} from "./types";
+import type { BackgroundImageSource, BackgroundMode, GlassParams, Theme } from "./types";
+import {
+  backgroundImageFor,
+  type BackgroundImageId,
+} from "./backgroundImages";
 
 export type LiquidGlassOptions = {
   canvas: HTMLCanvasElement;
@@ -27,20 +25,30 @@ export type LiquidGlassOptions = {
   background?: BackgroundMode;
   /** Used when background is "image". URL or an already-loaded source. */
   backgroundImage?: string | BackgroundImageSource;
+  /**
+   * Bundled image preset. When set it supplies a theme-matched 2880×1800
+   * background and switches `background` to "image"; takes precedence over
+   * `backgroundImage`.
+   */
+  backgroundImagePreset?: BackgroundImageId | null;
   /** Used when background is "solid"; any CSS color. */
   backgroundColor?: string;
-  /** Optional host palette for the procedural environment. */
-  palette?: GlassPalette;
+  /**
+   * Slowly drift the procedural color fields. Default false: every background
+   * mode renders a static composition. `prefers-reduced-motion` still wins.
+   */
+  backgroundAnimation?: boolean;
   onError?: (error: Error) => void;
 };
 
 export type LiquidGlassController = {
   setParams(params: GlassParams): void;
   setTheme(theme: Theme, immediate?: boolean): void;
-  setPalette(palette: GlassPalette): void;
   setBackground(mode: BackgroundMode): void;
   setBackgroundImage(source: string | BackgroundImageSource | null): void;
+  setBackgroundImagePreset(id: BackgroundImageId | null): void;
   setBackgroundColor(color: string): void;
+  setBackgroundAnimation(enabled: boolean): void;
   destroy(): void;
 };
 
@@ -55,8 +63,9 @@ export function createLiquidGlass({
   theme,
   background = "clean",
   backgroundImage,
+  backgroundImagePreset = null,
   backgroundColor,
-  palette,
+  backgroundAnimation = false,
   onError,
 }: LiquidGlassOptions): LiquidGlassController | null {
   const addedCanvasClass = !canvas.classList.contains("lg-canvas");
@@ -66,32 +75,54 @@ export function createLiquidGlass({
     const renderer = new GlassRenderer(canvas, glassRegistry);
     renderer.setParams(params);
     renderer.setTheme(theme, true);
-    if (palette) renderer.setPalette(palette);
     renderer.setBackground(background);
     renderer.setBackgroundImage(backgroundImage ?? null);
     if (backgroundColor) renderer.setBackgroundColor(backgroundColor);
-    renderer.start();
+    renderer.setBackgroundAnimation(backgroundAnimation);
 
     let destroyed = false;
+    let currentTheme = theme;
+    let imagePreset = backgroundImagePreset;
+
+    const applyImagePreset = () => {
+      if (destroyed || !imagePreset) return;
+      renderer.setBackgroundImage(backgroundImageFor(imagePreset, currentTheme));
+      renderer.setBackground("image");
+    };
+
+    applyImagePreset();
+    renderer.start();
 
     return {
       setParams(next) {
         if (!destroyed) renderer.setParams(next);
       },
       setTheme(next, immediate = false) {
-        if (!destroyed) renderer.setTheme(next, immediate);
-      },
-      setPalette(next) {
-        if (!destroyed) renderer.setPalette(next);
+        if (destroyed) return;
+        currentTheme = next;
+        renderer.setTheme(next, immediate);
+        applyImagePreset();
       },
       setBackground(mode) {
-        if (!destroyed) renderer.setBackground(mode);
+        if (destroyed) return;
+        renderer.setBackground(mode);
+        if (mode === "image") applyImagePreset();
       },
       setBackgroundImage(source) {
-        if (!destroyed) renderer.setBackgroundImage(source);
+        if (destroyed) return;
+        imagePreset = null;
+        renderer.setBackgroundImage(source);
+      },
+      setBackgroundImagePreset(id) {
+        if (destroyed) return;
+        imagePreset = id;
+        applyImagePreset();
       },
       setBackgroundColor(color) {
         if (!destroyed) renderer.setBackgroundColor(color);
+      },
+      setBackgroundAnimation(enabled) {
+        if (!destroyed) renderer.setBackgroundAnimation(enabled);
       },
       destroy() {
         if (destroyed) return;

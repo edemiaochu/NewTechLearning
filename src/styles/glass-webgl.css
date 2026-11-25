@@ -10,6 +10,12 @@
    the canvas: the material is drawn by the shader, not by CSS.
    ========================================================= */
 
+/* Runtime optical switch: keep the last WebGL frame out of the way when the
+   user turns optical glass off; the CSS glass sheets take over again. */
+html.lg-optical-off #glass-canvas {
+  display: none;
+}
+
 /* core.css keys its focus ring off --lg-ink; align it with the app theme. */
 html.lg-webgl-ready {
   --lg-ink: #f3f5ff;
@@ -96,4 +102,16 @@ html.lg-webgl-ready .app-nav-cluster:hover {
   -webkit-backdrop-filter: none;
   border-color: transparent;
   box-shadow: var(--shadow-optical);
+}
+
+/* The capsule shader owns hover/press highlights. Adding CSS backgrounds,
+   borders, lift or shadows inside an optical capsule paints a second layer
+   on top of the glass; only the icon colour may change. */
+html.lg-webgl-ready .app-tool-cluster .lg-icon-btn:hover:not(:disabled),
+html.lg-webgl-ready .app-nav-cluster .lg-icon-btn:hover:not(:disabled),
+html.lg-webgl-ready .app-search .app-search-clear:hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
 }

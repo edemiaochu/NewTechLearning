@@ -26,19 +26,6 @@ uniform float uTheme;
 uniform float uBackgroundMode;
 uniform vec3 uSolidColor;
 
-// Host palette (one entry per token-driven colour field).
-uniform vec3 uBaseTop;
-uniform vec3 uBaseBot;
-uniform vec3 uBlobA;
-uniform vec3 uBlobB;
-uniform vec3 uBlobC;
-uniform vec3 uBlobD;
-uniform vec3 uBlobE;
-uniform vec3 uStageGlow;
-uniform vec3 uCornerGlow;
-uniform vec3 uInk;
-uniform float uBlobStrength;
-
 out vec4 outColor;
 
 float hash21(vec2 p) {
@@ -71,7 +58,15 @@ void main() {
   float th = uTheme;
 
   // --- base wash -----------------------------------------------------------
-  vec3 col = mix(uBaseTop, uBaseBot, smoothstep(0.05, 0.95, uv.y));
+  vec3 lightTop = vec3(0.977, 0.963, 0.944);
+  vec3 lightBot = vec3(0.902, 0.931, 0.966);
+  vec3 darkTop  = vec3(0.019, 0.021, 0.034);
+  vec3 darkBot  = vec3(0.005, 0.006, 0.011);
+  vec3 col = mix(
+    mix(darkTop, darkBot, smoothstep(0.05, 0.95, uv.y)),
+    mix(lightTop, lightBot, smoothstep(0.05, 0.95, uv.y)),
+    th
+  );
 
   // --- soft colour fields --------------------------------------------------
   float b1 = blob(uv, vec2(0.10 + sin(t * 0.07) * 0.018, 0.26 + cos(t * 0.09) * 0.016), 0.34, aspect);
@@ -80,13 +75,13 @@ void main() {
   float b4 = blob(uv, vec2(0.25 + sin(t * 0.08) * 0.02, 0.89), 0.33, aspect);
   float b5 = blob(uv, vec2(0.93, 0.88 + sin(t * 0.1) * 0.012), 0.22, aspect);
 
-  vec3 c1 = uBlobA;
-  vec3 c2 = uBlobB;
-  vec3 c3 = uBlobC;
-  vec3 c4 = uBlobD;
-  vec3 c5 = uBlobE;
+  vec3 c1 = mix(vec3(0.94, 0.20, 0.42), vec3(1.00, 0.67, 0.51), th);
+  vec3 c2 = mix(vec3(0.35, 0.24, 0.95), vec3(0.72, 0.64, 1.00), th);
+  vec3 c3 = mix(vec3(0.10, 0.72, 0.92), vec3(0.52, 0.83, 1.00), th);
+  vec3 c4 = mix(vec3(0.10, 0.82, 0.65), vec3(0.60, 0.93, 0.80), th);
+  vec3 c5 = mix(vec3(1.00, 0.55, 0.16), vec3(1.00, 0.84, 0.48), th);
 
-  float strength = uBlobStrength;
+  float strength = mix(0.3, 0.46, th);
   col = mix(col, c1, b1 * strength);
   col = mix(col, c2, b2 * strength);
   col = mix(col, c3, b3 * strength * 0.92);
@@ -103,13 +98,13 @@ void main() {
     vec2 rq = fragPx - rc;
     float rr = length(rq);
 
-    vec3 sunCol = uStageGlow;
+    vec3 sunCol = mix(vec3(0.55, 0.35, 1.0), vec3(1.0, 0.60, 0.40), th);
     col = mix(col, sunCol, exp(-rr * rr / 52000.0) * mix(0.30, 0.17, th));
 
     float core = 1.0 - smoothstep(58.0, 62.0, rr);
-    col = mix(col, uBlobA, core * 0.42);
+    col = mix(col, mix(vec3(0.42, 0.55, 1.0), vec3(1.0, 0.55, 0.34), th), core * 0.42);
 
-    vec3 ink = uInk;
+    vec3 ink = mix(vec3(0.93, 0.95, 1.0), vec3(0.075, 0.08, 0.11), th);
     float ringPhase = cos(rr * 6.2831853 / 24.0);
     float ringLine = smoothstep(0.925, 0.999, ringPhase);
     float ringFade = (1.0 - smoothstep(230.0, 640.0, rr)) * smoothstep(66.0, 92.0, rr);
@@ -123,7 +118,7 @@ void main() {
     float lr = length(fragPx - lc);
     float arcRadius = min(cssSize.x, cssSize.y) * 0.55;
     float arc = 1.0 - smoothstep(0.4, 1.4, abs(lr - arcRadius));
-    col = mix(col, uCornerGlow, arc * 0.10);
+    col = mix(col, mix(vec3(0.30, 0.55, 1.0), vec3(0.28, 0.40, 0.95), th), arc * 0.10);
 
     // --- measurement grid --------------------------------------------------
     vec2 cell = fract(fragPx / 26.0) - 0.5;
@@ -151,30 +146,33 @@ void main() {
     // One broad soft light behind the glass. No rings, dots or drafting lines.
     vec2 stageCenter = vec2(cssSize.x * 0.675, cssSize.y * 0.475);
     vec2 stageDelta = fragPx - stageCenter;
+    vec3 stageGlow = mix(vec3(0.52, 0.42, 1.0), vec3(1.0, 0.70, 0.50), th);
     float stageFalloff = exp(-dot(stageDelta, stageDelta) / 78000.0);
-    col = mix(col, uStageGlow, stageFalloff * mix(0.28, 0.18, th));
+    col = mix(col, stageGlow, stageFalloff * mix(0.28, 0.18, th));
 
     // A slightly tighter soft core gives the lens a color edge to bend,
     // while remaining a single clean light source (no rings or grid).
     float softCore = 1.0 - smoothstep(60.0, 260.0, length(stageDelta));
-    col = mix(col, uStageGlow, softCore * mix(0.10, 0.08, th));
+    col = mix(col, stageGlow, softCore * mix(0.10, 0.08, th));
 
     vec2 cornerDelta = fragPx - vec2(cssSize.x * 0.16, cssSize.y * 0.92);
     col = mix(
       col,
-      uCornerGlow,
+      mix(vec3(0.28, 0.52, 1.0), vec3(0.62, 0.84, 1.0), th),
       exp(-dot(cornerDelta, cornerDelta) / 110000.0) * 0.06
     );
   }
 
   // --- atmosphere ----------------------------------------------------------
   float cornerGlow = exp(-dot(p - vec2(-0.62, -0.58), p - vec2(-0.62, -0.58)) * 3.4);
-  col += uCornerGlow * cornerGlow * 0.055;
+  col += mix(vec3(0.18, 0.35, 0.8), vec3(1.0, 0.98, 0.94), th) * cornerGlow * 0.055;
 
   float vignette = 1.0 - smoothstep(0.35, 1.2, length(p)) * 0.055;
   col *= vignette;
 
-  float grain = hash21(fragPx + floor(t * 10.0) * 31.7) - 0.5;
+  // Static screen-space dither: hides gradient banding without the 10 Hz
+  // flicker an animated grain adds to large, smooth fields.
+  float grain = hash21(fragPx) - 0.5;
   col += grain * 0.014;
 
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
@@ -184,7 +182,7 @@ void main() {
 export const GLASS_FRAG = /* glsl */ `#version 300 es
 precision highp float;
 
-#define MAX_SHAPES 40
+#define MAX_SHAPES 32
 
 uniform vec2  uRes;
 uniform float uDpr;
@@ -199,6 +197,18 @@ uniform float uThickness;
 uniform float uDispersion;
 uniform float uRoughness;
 uniform float uBevel;
+uniform float uShadowLight;
+uniform float uShadowDark;
+uniform float uShadowSoftness;
+uniform vec2  uShadowOffset;
+uniform float uRimWidth;
+uniform float uRimBase;
+uniform float uRimFacing;
+uniform float uRimTop;
+uniform float uRimStrength;
+uniform float uSpecularStrength;
+uniform float uFresnelStrength;
+uniform float uInnerGlowStrength;
 uniform int   uShapeCount;
 
 uniform vec4 uRect[MAX_SHAPES];   // x, y, w, h (CSS px)
@@ -267,12 +277,12 @@ void main() {
     if (sd > 90.0) continue;
 
     // --- soft contact shadow ------------------------------------------------
-    float sdShadow = sdRoundedRect(p - vec2(2.0, 11.0), halfSize, radius);
-    float shadow = exp(-max(sdShadow, 0.0) / 19.0);
+    float sdShadow = sdRoundedRect(p - uShadowOffset, halfSize, radius);
+    float shadow = exp(-max(sdShadow, 0.0) / max(uShadowSoftness, 1.0));
     shadow *= smoothstep(-16.0, 7.0, sdShadow);
-    // Contact shadow disabled (upstream default). Set a non-zero strength to
-    // bring it back: light theme 0.04-0.07, dark theme 0.18-0.22.
-    float shadowStrength = 0.0;
+    // Style option: 0 disables the shadow. Suggested light 0.04-0.07,
+    // dark 0.18-0.22; see GlassStyle in types.ts.
+    float shadowStrength = mix(uShadowDark, uShadowLight, uTheme);
     col *= 1.0 - shadow * shadowStrength;
 
     if (sd > 1.4) continue;
@@ -354,7 +364,7 @@ void main() {
     vec3 boxCol = mix(vec3(0.45, 0.68, 1.0), vec3(1.0, 0.93, 0.82), uTheme);
     env += boxCol * softbox * 0.5;
 
-    glass += env * fres * 0.34;
+    glass += env * fres * 0.34 * max(uFresnelStrength, 0.0);
 
     // --- pointer specular ---------------------------------------------------
     vec3 L = normalize(vec3(uPointer - screenPx, 210.0));
@@ -365,20 +375,23 @@ void main() {
     spec *= 0.1 + 0.9 * smoothstep(0.03, 0.45, fres);
     spec *= 0.8 + 0.2 * hover;
     vec3 specCol = mix(vec3(0.82, 0.92, 1.0), vec3(1.0, 0.96, 0.88), uTheme);
-    glass += specCol * spec;
+    glass += specCol * spec * max(uSpecularStrength, 0.0);
 
     // --- rim light ----------------------------------------------------------
-    float rim = smoothstep(2.6, 0.0, edgeDist);
+    float rim = smoothstep(max(uRimWidth, 0.5), 0.0, edgeDist);
     vec2 toPointer = normalize(uPointer - screenPx + vec2(1e-4));
     float rimFacing = max(dot(gr, toPointer), 0.0);
     float topBias = smoothstep(-0.15, 0.95, -gr.y);
     vec3 rimCol = mix(vec3(0.74, 0.86, 1.0), vec3(1.0, 0.995, 0.975), uTheme);
-    float rimPower = 0.30 + 0.52 * rimFacing + 0.16 * topBias;
+    float rimPower = max(
+      uRimBase + uRimFacing * rimFacing + uRimTop * topBias,
+      0.0
+    ) * max(uRimStrength, 0.0);
     glass += rimCol * rim * rimPower * (0.62 + 0.55 * fres) * (1.0 + 0.22 * hover);
 
     // Wide, faint inner sheen along the bevel.
     float innerGlow = (1.0 - smoothstep(0.0, 0.6, t)) * smoothstep(0.0, 0.05, t);
-    glass += rimCol * innerGlow * (0.014 + 0.05 * fres) * (1.0 + 0.25 * hover);
+    glass += rimCol * innerGlow * (0.014 + 0.05 * fres) * (1.0 + 0.25 * hover) * max(uInnerGlowStrength, 0.0);
 
     // --- tinted hover / press response -------------------------------------
     glass = mix(glass, tintCol, press * 0.05 + hover * 0.02);
@@ -428,11 +441,12 @@ void main() {
 
   vec3 col = texture(uImage, st).rgb;
 
-  // Theme veil, strongest on the left where copy usually sits.
+  // Theme veil, strongest on the left where copy usually sits. Kept light so
+  // high-detail image backgrounds stay crisp while text remains readable.
   vec3 veilCol = mix(vec3(0.012, 0.016, 0.035), vec3(0.985, 0.97, 0.94), uTheme);
   float side = smoothstep(0.12, 0.78, 1.0 - uv.x);
-  float veil = mix(0.16, 0.08, uTheme) + side * mix(0.44, 0.30, uTheme);
-  float topVeil = (1.0 - smoothstep(0.0, 0.2, uv.y)) * mix(0.10, 0.05, uTheme);
+  float veil = mix(0.06, 0.08, uTheme) + side * mix(0.22, 0.24, uTheme);
+  float topVeil = (1.0 - smoothstep(0.0, 0.2, uv.y)) * mix(0.03, 0.05, uTheme);
   col = mix(col, veilCol, veil + topVeil);
 
   // Soft vignette + grain to match the procedural environment.

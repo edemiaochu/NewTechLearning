@@ -33,6 +33,13 @@ import {
   isLowSignal,
   isWorldItem,
 } from './news.js';
+import {
+  GLASS_BACKGROUND_LABELS,
+  GLASS_BACKGROUND_MODES,
+  GLASS_PARAM_SECTIONS,
+  formatGlassParam,
+  normalizeGlassParams,
+} from './glass.js';
 
 const THEME_OPTIONS = [
   { id: 'aurora', label: '极光' },
@@ -45,27 +52,10 @@ const THEME_OPTIONS = [
   { id: 'light', label: '明亮' },
 ];
 
-const GLASS_BACKGROUNDS = [
-  { id: 'clean', label: '柔光' },
-  { id: 'specimen', label: '标定' },
-  { id: 'solid', label: '纯色' },
-];
-
-const GLASS_FIELDS = [
-  { key: 'ior', label: '折射率', min: 1, max: 2, step: 0.01 },
-  { key: 'thickness', label: '厚度', min: 0, max: 140, step: 1 },
-  { key: 'dispersion', label: '色散', min: 0, max: 1, step: 0.01 },
-  { key: 'roughness', label: '粗糙度', min: 0, max: 1, step: 0.01 },
-  { key: 'bevel', label: '倒角', min: 0, max: 60, step: 1 },
-];
-
-const DEFAULT_GLASS_PARAMS = {
-  ior: 1.55,
-  thickness: 84,
-  dispersion: 0.4,
-  roughness: 0.06,
-  bevel: 4,
-};
+const GLASS_BACKGROUNDS = GLASS_BACKGROUND_MODES.map((id) => ({
+  id,
+  label: GLASS_BACKGROUND_LABELS[id],
+}));
 
 const MODEL_LABELS = {
   'claude-opus-5-5': 'Claude Opus 5.5',
@@ -1980,6 +1970,7 @@ export function renderThemePopover(position = {}) {
   const grayValue = state.themeGray[state.theme] ?? 3;
   const alpha = Number.isFinite(state.glassAlpha) ? state.glassAlpha : 100;
   const background = state.glassBackground || 'clean';
+  const optical = state.opticalGlass !== false;
 
   return `<div class="lg-popover theme-popover" style="${esc(
     style
@@ -2013,6 +2004,14 @@ export function renderThemePopover(position = {}) {
         }" data-theme-gray ${grayTheme ? '' : 'disabled'} aria-label="灰度" />
         <span class="theme-slider-value" data-theme-gray-value>${grayTheme ? grayValue : '—'}</span>
       </div>
+      <div class="theme-toggle-row">
+        <span class="theme-slider-label">光学</span>
+        <span class="theme-toggle-text">WebGL2 折射玻璃</span>
+        <label class="check-toggle theme-toggle-switch">
+          <input type="checkbox" data-optical-toggle ${optical ? 'checked' : ''} aria-label="启用光学折射玻璃" />
+          <span>${optical ? '开启' : '关闭'}</span>
+        </label>
+      </div>
       <div class="theme-seg-row">
         <span class="theme-slider-label">环境</span>
         <div class="theme-segmented" role="radiogroup" aria-label="光学玻璃背景">
@@ -2026,13 +2025,23 @@ export function renderThemePopover(position = {}) {
           ).join('')}
         </div>
       </div>
+      <div class="theme-toggle-row">
+        <span class="theme-slider-label">漂移</span>
+        <span class="theme-toggle-text">环境缓慢流动</span>
+        <label class="check-toggle theme-toggle-switch">
+          <input type="checkbox" data-glass-animation ${
+            state.glassAnimation ? 'checked' : ''
+          } aria-label="背景缓慢漂移" />
+          <span>${state.glassAnimation ? '开启' : '关闭'}</span>
+        </label>
+      </div>
       <button class="theme-params-trigger" type="button" data-action="glass-params">
         ${icon('sliders', { strokeWidth: 2 })}
         <span>材质与光效参数</span>
         <span class="theme-params-arrow">${icon('arrow-right', { strokeWidth: 2 })}</span>
       </button>
     </div>
-    <div class="theme-hint">所有调整只改变外观，立即生效并记住选择。</div>
+    <div class="theme-hint">所有调整只改变外观，立即生效并记住选择。关闭光学后自动回到 CSS 玻璃。</div>
   </div>`;
 }
 
@@ -2220,7 +2229,7 @@ export function renderGlassParamsPanel(position = {}) {
   const style = `top:${Math.round(position.top || 64)}px;right:${Math.round(
     position.right || 16
   )}px;`;
-  const params = { ...DEFAULT_GLASS_PARAMS, ...(state.glassParams || {}) };
+  const params = normalizeGlassParams(state.glassParams);
   return `<div class="lg-popover glass-params-panel" style="${esc(
     style
   )}" role="dialog" aria-label="光学玻璃材质与光效">
@@ -2241,22 +2250,36 @@ export function renderGlassParamsPanel(position = {}) {
       </div>
     </header>
     <div class="glass-params-grid">
-      ${GLASS_FIELDS.map((field) => {
-        const value = params[field.key];
-        return `<label class="glass-param-row">
-          <span class="glass-param-label">${field.label}</span>
-          <input class="theme-slider glass-param-slider" type="range" min="${
-            field.min
-          }" max="${field.max}" step="${field.step}" value="${value}" data-glass-param="${
-          field.key
-        }" aria-label="${field.label}" />
-          <output class="glass-param-value" data-glass-param-value="${field.key}">${value}</output>
-        </label>`;
-      }).join('')}
+      ${GLASS_PARAM_SECTIONS.map(
+        (section) => `<section class="glass-params-section">
+          <header class="glass-params-section-head">
+            <span>${esc(section.title)}</span>
+            <small>${esc(section.hint)}</small>
+          </header>
+          <div class="glass-params-rows">
+            ${section.fields
+              .map((field) => {
+                const value = params[field.key];
+                return `<label class="glass-param-row">
+                  <span class="glass-param-label">${esc(field.label)}</span>
+                  <input class="theme-slider glass-param-slider" type="range" min="${
+                    field.min
+                  }" max="${field.max}" step="${field.step}" value="${value}" data-glass-param="${
+                  field.key
+                }" aria-label="${esc(field.label)}" />
+                  <output class="glass-param-value" data-glass-param-value="${
+                    field.key
+                  }">${formatGlassParam(field, value)}</output>
+                </label>`;
+              })
+              .join('')}
+          </div>
+        </section>`
+      ).join('')}
     </div>
     <div class="glass-params-foot">
-      <span>折射率、厚度、色散、粗糙度与倒角由 WebGL2 光学层实时渲染。</span>
-      <span class="glass-params-fallback">无 WebGL2 时自动保留 CSS 玻璃。</span>
+      <span>18 项材质、阴影、边缘高光与反射参数由 WebGL2 光学层实时渲染。</span>
+      <span class="glass-params-fallback">无 WebGL2 或关闭光学时自动保留 CSS 玻璃。</span>
     </div>
   </div>`;
 }
@@ -2496,7 +2519,7 @@ export function renderSettingsModal() {
 
         <section class="settings-section">
           <h3>${icon('palette')} 外观</h3>
-          <p class="settings-desc">八套主题共享同一套玻璃物理规则，只替换表面、主色与环境光；纯黑与黑灰额外提供灰度调节。</p>
+          <p class="settings-desc">八套主题共享同一套玻璃物理规则，只替换表面、主色与环境光；纯黑与黑灰额外提供灰度调节。外观面板与这里的所有开关共用同一份状态。</p>
           <div class="theme-grid" role="radiogroup" aria-label="主题">${themeOptions(state.theme, 'app-theme-option')}</div>
           <div class="settings-inline font-setting-row">
             <label class="settings-inline-label" for="settings-glass-alpha">玻璃强度
@@ -2504,28 +2527,62 @@ export function renderSettingsModal() {
             </label>
             <input class="lg-slider" id="settings-glass-alpha" type="range" min="0" max="100" step="1" value="${state.glassAlpha}" data-glass-alpha aria-label="玻璃强度" />
           </div>
+          <div class="settings-inline font-setting-row${
+            state.theme === 'black' || state.theme === 'graphite' ? '' : ' is-disabled'
+          }">
+            <label class="settings-inline-label" for="settings-theme-gray">灰度
+              <span>纯黑 / 黑灰主题的明暗 · <span id="settings-theme-gray-value" data-theme-gray-value>${
+                state.theme === 'black' || state.theme === 'graphite'
+                  ? state.themeGray[state.theme] ?? 3
+                  : '—'
+              }</span></span>
+            </label>
+            <input class="lg-slider" id="settings-theme-gray" type="range" min="0" max="20" step="1" value="${
+              state.theme === 'black' || state.theme === 'graphite'
+                ? state.themeGray[state.theme] ?? 3
+                : 3
+            }" data-theme-gray ${
+              state.theme === 'black' || state.theme === 'graphite' ? '' : 'disabled'
+            } aria-label="灰度" />
+          </div>
+          <div class="settings-inline">
+            <label class="settings-inline-label" for="settings-optical-toggle">光学折射玻璃
+              <span>WebGL2 实时折射、色散与指针高光；关闭后回到 CSS 玻璃</span>
+            </label>
+            <label class="check-toggle"><input type="checkbox" id="settings-optical-toggle" data-optical-toggle ${
+              state.opticalGlass !== false ? 'checked' : ''
+            } /> <span>${state.opticalGlass !== false ? '开启' : '关闭'}</span></label>
+          </div>
           <div class="settings-inline glass-bg-setting">
             <label class="settings-inline-label">光学玻璃背景
               <span>WebGL 光学层的环境 · 纯色没有可折射的细节</span>
             </label>
             <div class="proxy-modes" role="group" aria-label="光学玻璃背景">
-              ${[
-                ['clean', '柔光渐变'],
-                ['specimen', '光学标定'],
-                ['solid', '主题纯色'],
-              ]
-                .map(
-                  ([value, label]) =>
-                    `<button class="proxy-mode${
-                      glassBackground === value ? ' is-active' : ''
-                    }" type="button" data-action="glass-background" data-glass-background="${value}">${esc(
-                      label
-                    )}</button>`
-                )
-                .join('')}
+              ${GLASS_BACKGROUNDS.map(
+                (mode) =>
+                  `<button class="proxy-mode${
+                    glassBackground === mode.id ? ' is-active' : ''
+                  }" type="button" data-action="glass-background" data-glass-background="${
+                    mode.id
+                  }">${esc(mode.label)}</button>`
+              ).join('')}
             </div>
           </div>
-          <p class="settings-note">柔光渐变跟随当前主题生成大色场；光学标定显示同心环、点阵与制图线，折射最明显；纯色只保留 tint、边缘高光与指针高光。</p>
+          <div class="settings-inline">
+            <label class="settings-inline-label" for="settings-glass-animation">背景漂移
+              <span>让柔光渐变、光学标定与内置图片缓慢流动</span>
+            </label>
+            <label class="check-toggle"><input type="checkbox" id="settings-glass-animation" data-glass-animation ${
+              state.glassAnimation ? 'checked' : ''
+            } /> 启用</label>
+          </div>
+          <div class="settings-row" style="margin-top:8px">
+            <button class="lg-btn" type="button" data-action="open-glass-params">${icon(
+              'sliders'
+            )} 材质与光效参数</button>
+            <span class="proxy-test-status">18 项材质、阴影、边缘高光与反射参数</span>
+          </div>
+          <p class="settings-note">柔光渐变跟随当前主题生成大色场；光学标定显示同心环、点阵与制图线，折射最明显；主题纯色只保留 tint、边缘高光与指针高光；内置图片使用与主题匹配的光学标定图。</p>
           <div class="settings-inline font-setting-row">
             <label class="settings-inline-label" for="settings-font-slider">阅读字号
               <span>仅影响文章正文 · <span id="settings-font-value">${readerFontSize}px</span></span>

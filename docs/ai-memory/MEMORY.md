@@ -9,7 +9,7 @@
 - [当前状态](STATE.md) — 核心功能已完成并已提交 main；未打包；待真实网络复测
 
 ## 主题
-- [液态玻璃 UI](topics/ui-liquid-glass.md) — 工作台布局、8 套主题、玻璃强度/灰度/材质、WebGL2 光学玻璃层
+- [液态玻璃 UI](topics/ui-liquid-glass.md) — 工作台布局、8 套主题、玻璃强度/灰度、光学开关与背景、18 项材质、WebGL2 光学玻璃层
 - [信息源与抓取](topics/sources-feeds.md) — 15 个来源、RSS/Atom、正文抽取与摘要
 - [今日热点新闻](topics/news-module.md) — 当天范围、跨来源事件聚合、关键词与世界要闻
 - [阅读体验](topics/reader-experience.md) — 居中/全屏/分栏、字号、宽度与阅读框

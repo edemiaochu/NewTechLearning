@@ -5,10 +5,12 @@ const LS = {
   themeGray: 'fr.themeGray',
   glassAlpha: 'fr.glassAlpha',
   glassParams: 'fr.glassParams',
+  glassBackground: 'fr.glassBackground',
+  glassAnimation: 'fr.glassAnimation',
+  opticalGlass: 'fr.opticalGlass',
   sidebarWidth: 'fr.sidebarWidth',
   sidebarCollapsed: 'fr.sidebarCollapsed',
   dictionaryOn: 'fr.dictionaryOn',
-  glassBackground: 'fr.glassBackground',
   read: 'fr.read',
   saved: 'fr.saved',
   notes: 'fr.notes',
@@ -54,6 +56,8 @@ export const state = {
   glassAlpha: 100,
   glassParams: null,
   glassBackground: 'clean',
+  glassAnimation: false,
+  opticalGlass: true,
   read: new Set(),
   saved: new Set(),
   notes: {},
@@ -141,9 +145,11 @@ export function hydrateLocal() {
   document.documentElement.dataset.theme = state.theme;
 
   const glassBackground = localStorage.getItem(LS.glassBackground);
-  if (['clean', 'specimen', 'solid'].includes(glassBackground)) {
+  if (['clean', 'specimen', 'solid', 'image'].includes(glassBackground)) {
     state.glassBackground = glassBackground;
   }
+  state.glassAnimation = localStorage.getItem(LS.glassAnimation) === '1';
+  state.opticalGlass = localStorage.getItem(LS.opticalGlass) !== '0';
 
   const rawGlassAlpha = localStorage.getItem(LS.glassAlpha);
   if (rawGlassAlpha != null && rawGlassAlpha !== '') {
@@ -447,7 +453,7 @@ export function setGlassParams(params) {
 }
 
 export function setGlassBackground(mode) {
-  const next = ['clean', 'specimen', 'solid'].includes(mode) ? mode : 'clean';
+  const next = ['clean', 'specimen', 'solid', 'image'].includes(mode) ? mode : 'clean';
   state.glassBackground = next;
   try {
     localStorage.setItem(LS.glassBackground, next);
@@ -455,6 +461,26 @@ export function setGlassBackground(mode) {
     // Ignore.
   }
   return next;
+}
+
+export function setGlassAnimation(enabled) {
+  state.glassAnimation = !!enabled;
+  try {
+    localStorage.setItem(LS.glassAnimation, state.glassAnimation ? '1' : '0');
+  } catch {
+    // Ignore.
+  }
+  return state.glassAnimation;
+}
+
+export function setOpticalGlass(enabled) {
+  state.opticalGlass = !!enabled;
+  try {
+    localStorage.setItem(LS.opticalGlass, state.opticalGlass ? '1' : '0');
+  } catch {
+    // Ignore.
+  }
+  return state.opticalGlass;
 }
 
 export function setSources(sources) {

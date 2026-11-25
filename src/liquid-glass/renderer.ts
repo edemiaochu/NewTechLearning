@@ -1,14 +1,15 @@
 import { BACKGROUND_FRAG, FULLSCREEN_VERT, GLASS_FRAG, IMAGE_BACKGROUND_FRAG } from "./shaders";
 import type { FrameShape, GlassRegistry } from "./registry";
+import { resolveGlassStyle } from "./types";
 import type {
   BackgroundImageSource,
   BackgroundMode,
-  GlassPalette,
   GlassParams,
+  GlassStyle,
   Theme,
 } from "./types";
 
-const MAX_SHAPES = 40;
+const MAX_SHAPES = 32;
 
 type ProgramInfo = {
   program: WebGLProgram;
@@ -93,20 +94,7 @@ export class GlassRenderer {
     roughness: 0.06,
     bevel: 36,
   };
-
-  private palette: GlassPalette = {
-    baseTop: [0.977, 0.963, 0.944],
-    baseBot: [0.902, 0.931, 0.966],
-    blobA: [0.94, 0.2, 0.42],
-    blobB: [0.35, 0.24, 0.95],
-    blobC: [0.1, 0.72, 0.92],
-    blobD: [0.1, 0.82, 0.65],
-    blobE: [1.0, 0.55, 0.16],
-    stageGlow: [0.52, 0.42, 1.0],
-    cornerGlow: [0.28, 0.52, 1.0],
-    ink: [0.075, 0.08, 0.11],
-    blobStrength: 0.46,
-  };
+  private style: Required<GlassStyle> = resolveGlassStyle();
 
   private theme = 1;
   private themeTarget = 1;
@@ -118,6 +106,9 @@ export class GlassRenderer {
   private lastFrame = 0;
   private raf = 0;
   private disposed = false;
+  private reducedMotion = false;
+  private motionQuery: MediaQueryList | null = null;
+  private backgroundAnimation = false;
 
   private rectData = new Float32Array(MAX_SHAPES * 4);
   private propsData = new Float32Array(MAX_SHAPES * 4);
@@ -131,6 +122,10 @@ export class GlassRenderer {
 
   private handleVisibility = () => {
     this.lastFrame = 0;
+  };
+
+  private handleMotionPreference = (event: MediaQueryListEvent) => {
+    this.reducedMotion = event.matches;
   };
 
   constructor(canvas: HTMLCanvasElement, registry: GlassRegistry) {
@@ -167,17 +162,19 @@ export class GlassRenderer {
     gl.disable(gl.BLEND);
     gl.disable(gl.CULL_FACE);
 
+    if (typeof window.matchMedia === "function") {
+      this.motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+      this.reducedMotion = this.motionQuery.matches;
+      this.motionQuery.addEventListener("change", this.handleMotionPreference);
+    }
+
     window.addEventListener("pointermove", this.handlePointer, { passive: true });
     document.addEventListener("visibilitychange", this.handleVisibility);
   }
 
   setParams(params: GlassParams) {
     this.params = params;
-  }
-
-  /** Replaces the procedural environment palette (host design tokens). */
-  setPalette(palette: GlassPalette) {
-    this.palette = palette;
+    this.style = resolveGlassStyle(params);
   }
 
   setTheme(theme: Theme, immediate = false) {
@@ -187,6 +184,15 @@ export class GlassRenderer {
 
   setBackground(mode: BackgroundMode) {
     this.backgroundMode = mode;
+  }
+
+  /**
+   * Enables the slow drift of the procedural color fields. Off by default:
+   * every background mode renders a static composition until this is enabled.
+   * `prefers-reduced-motion: reduce` still freezes the clock.
+   */
+  setBackgroundAnimation(enabled: boolean) {
+    this.backgroundAnimation = enabled;
   }
 
   /**
@@ -295,7 +301,7 @@ export class GlassRenderer {
     let dt = this.lastFrame === 0 ? 1 / 60 : now - this.lastFrame;
     dt = Math.min(Math.max(dt, 0), 0.05);
     this.lastFrame = now;
-    this.time += dt;
+    if (this.backgroundAnimation && !this.reducedMotion) this.time += dt;
 
     const follow = 1 - Math.exp(-dt * 3.6);
     this.theme += (this.themeTarget - this.theme) * follow;
@@ -398,31 +404,6 @@ export class GlassRenderer {
         this.solidColor[1],
         this.solidColor[2],
       );
-
-      const p = this.palette;
-      this.uniform3f(this.background, "uBaseTop", p.baseTop[0], p.baseTop[1], p.baseTop[2]);
-      this.uniform3f(this.background, "uBaseBot", p.baseBot[0], p.baseBot[1], p.baseBot[2]);
-      this.uniform3f(this.background, "uBlobA", p.blobA[0], p.blobA[1], p.blobA[2]);
-      this.uniform3f(this.background, "uBlobB", p.blobB[0], p.blobB[1], p.blobB[2]);
-      this.uniform3f(this.background, "uBlobC", p.blobC[0], p.blobC[1], p.blobC[2]);
-      this.uniform3f(this.background, "uBlobD", p.blobD[0], p.blobD[1], p.blobD[2]);
-      this.uniform3f(this.background, "uBlobE", p.blobE[0], p.blobE[1], p.blobE[2]);
-      this.uniform3f(
-        this.background,
-        "uStageGlow",
-        p.stageGlow[0],
-        p.stageGlow[1],
-        p.stageGlow[2],
-      );
-      this.uniform3f(
-        this.background,
-        "uCornerGlow",
-        p.cornerGlow[0],
-        p.cornerGlow[1],
-        p.cornerGlow[2],
-      );
-      this.uniform3f(this.background, "uInk", p.ink[0], p.ink[1], p.ink[2]);
-      this.uniform1f(this.background, "uBlobStrength", p.blobStrength);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
 
@@ -484,6 +465,18 @@ export class GlassRenderer {
     this.uniform1f(this.glass, "uDispersion", this.params.dispersion);
     this.uniform1f(this.glass, "uRoughness", this.params.roughness);
     this.uniform1f(this.glass, "uBevel", this.params.bevel);
+    this.uniform1f(this.glass, "uShadowLight", this.style.shadowLight);
+    this.uniform1f(this.glass, "uShadowDark", this.style.shadowDark);
+    this.uniform1f(this.glass, "uShadowSoftness", this.style.shadowSoftness);
+    this.uniform2f(this.glass, "uShadowOffset", this.style.shadowOffsetX, this.style.shadowOffsetY);
+    this.uniform1f(this.glass, "uRimWidth", this.style.rimWidth);
+    this.uniform1f(this.glass, "uRimBase", this.style.rimBase);
+    this.uniform1f(this.glass, "uRimFacing", this.style.rimFacing);
+    this.uniform1f(this.glass, "uRimTop", this.style.rimTop);
+    this.uniform1f(this.glass, "uRimStrength", this.style.rimStrength);
+    this.uniform1f(this.glass, "uSpecularStrength", this.style.specularStrength);
+    this.uniform1f(this.glass, "uFresnelStrength", this.style.fresnelStrength);
+    this.uniform1f(this.glass, "uInnerGlowStrength", this.style.innerGlowStrength);
     this.uniform1i(this.glass, "uShapeCount", shapeCount);
 
     this.uniform4fv(this.glass, "uRect", this.rectData);
@@ -534,6 +527,7 @@ export class GlassRenderer {
     cancelAnimationFrame(this.raf);
     window.removeEventListener("pointermove", this.handlePointer);
     document.removeEventListener("visibilitychange", this.handleVisibility);
+    this.motionQuery?.removeEventListener("change", this.handleMotionPreference);
 
     const gl = this.gl;
     if (this.bgTexture) gl.deleteTexture(this.bgTexture);

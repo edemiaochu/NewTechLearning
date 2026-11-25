@@ -1,6 +1,6 @@
 ---
 name: current-state
-description: 项目当前状态：核心能力、今日热点、AI 概览/全屏/导出已完成；工作台 UI 改动未提交；未打包；待真实代理与导出保存对话框复测
+description: 项目当前状态：核心能力、今日热点、AI 概览/全屏/导出已完成；外观/材质已对齐更新后的 skill；未打包；待真实代理与导出保存对话框复测
 type: state
 updated: 2026-11-25
 ---
@@ -19,11 +19,14 @@ updated: 2026-11-25
 - Claude 专区、学习路线、专区笔记 — `views.js`
 - 液态玻璃工作台 UI、8 套主题、无边框窗口、自定义图标 — `src/styles/` / `build/`
 - 工作台壳层：单行分组玻璃工具栏（导航组/操作组）、可折叠与可拖动侧栏（`Ctrl/⌘+B`）、工具栏视图切换 — `index.html` / `app.js` / `app.css`
-- 主题面板升级：348px 4 列 8 主题、玻璃强度 0–100%、纯黑/黑灰灰度调节、光学背景分段、材质与光效参数面板（折射率/厚度/色散/粗糙度/倒角）— `views.js` / `app.js` / `tokens.css` / `glass.js`
+- 主题面板升级：348px 4 列 8 主题、玻璃强度 0–100%、纯黑/黑灰灰度调节、光学开关、光学背景（柔光/标定/纯色/内置图片）、背景漂移、18 项材质与光效参数面板 — `views.js` / `app.js` / `tokens.css` / `glass.js`
+- 设置「外观」与主题面板完全对齐：8 主题、玻璃强度、灰度、光学开关、4 种背景、背景漂移、材质面板入口、阅读字号/宽度，共用同一份 state 与持久化键
+- 同步 `liquid-glass-optics` 最新核心：18 项 `GlassParams`、`image` 背景与 `backgroundAnimation`、上游 dark/light 光学环境；保留本地 `clip` 扩展；光学胶囊内按钮 hover 不再叠加 CSS 第二层；macOS 品牌组改为文字在左、logo 在右 — `src/liquid-glass/` / `src/js/glass.js` / `glass-webgl.css` / `app.css`
+- 内置 Optical Chart 背景以 data URL 打包（`npm run glass-bg`），避开 Electron `file://` 下 WebGL 跨源纹理限制
 - 英文词典：阅读器双击英文单词查词，Cambridge 英英 + 英汉释义/例句/音标，Wiktionary 英英回退；内置 ECDICT 离线英汉（59k 词 + 39k 词形，约 2.2MiB，MIT），断网或 Cambridge 缺词时兜底并支持「联网重查」；主进程抓取解析，30 天本地缓存，可在设置关闭或清缓存 — `lib/dictionary.js` / `data/ecdict.json.gz` / `app.js` / `views.js`
 - macOS 窗口适配：保留原生红绿灯并垂直居中，隐藏自定义窗口按钮，品牌图标与文字移到右上；Windows/Linux 保持原布局 — `main.js` / `preload.js` / `theme-boot.js` / `app.css`
 - WebGL2 光学玻璃层：标题栏/侧栏/搜索/工具栏簇真实折射、色散、Fresnel 与指针高光；侧栏是单个光学表面，导航/来源行为普通 CSS 行（2026-11-24 重设计）；窗口控制为无外框图标，不参与玻璃表面；主内容区是不透明静态舞台，保证正文清晰 — `src/js/glass.js` / `src/liquid-glass/` / `src/styles/glass-webgl.css`
-- 光学玻璃背景模式：柔光渐变 / 光学标定 / 主题纯色，设置→外观切换并持久化 `fr.glassBackground`；主题切换同步调色板与纯色底
+- 光学玻璃背景模式：柔光渐变 / 光学标定 / 主题纯色 / 内置图片，设置→外观或主题面板切换并持久化 `fr.glassBackground`；另有背景漂移开关 `fr.glassAnimation` 与光学开关 `fr.opticalGlass`；主题切换同步暗/亮环境与纯色底
 - 居中 / 全屏 / 右侧分栏阅读，分栏下信息流仍可点击
 - 阅读框宽高、阅读栏宽度、字号 14–24px 可调并持久化
 - 阅读器局部刷新，修复打开文章时闪烁
@@ -38,8 +41,8 @@ updated: 2026-11-25
 
 ## 进行中 / 未完成
 
-- 代码已提交 main：`7001e41` init → `b78d4d0` 增加新闻模块 → `41f1654` 更新 ui 为液态玻璃
-- 2026-11-25 工作台 UI、8 主题、英文词典（Cambridge + ECDICT）已随本次交付提交 main
+- 代码已提交 main：`7001e41` init → `b78d4d0` 增加新闻模块 → `41f1654` 更新 ui 为液态玻璃 → `a2f4ef3` 工作台界面与双击英文词典
+- 2026-11-25 外观/材质对齐更新后的 skill（18 项参数、光学开关、4 种背景、设置与主题面板一一对应）尚未提交
 - 安装包尚未配置（无 electron-builder / Forge）
 
 ## 已知问题与限制
@@ -55,6 +58,8 @@ updated: 2026-11-25
 - 分栏宽度与居中阅读框尺寸不会在同一布局设置下互相换算
 - WebGL 光学材质只用于透明 chrome 层；modal/popover/toast/阅读器仍是 CSS 玻璃 fallback（页面 canvas 无法绘制在覆盖内容之上）
 - WebGL2 不可用或 `prefers-reduced-transparency` 时自动回到原 CSS 玻璃；光学层持续 RAF 渲染，低端集显未做帧率实测
+- 主内容是不透明静态舞台，所以 `image` 背景只在工具栏/侧栏/搜索等 chrome 玻璃中可见；这是清晰度取舍，不是加载失败
+- 上游光学环境只有 dark/light 两套，八套 CSS 主题不再各自生成折射环境色；主题差异仍体现在表面、强调色与内容
 
 ## 下一步
 
@@ -65,10 +70,13 @@ updated: 2026-11-25
 - [ ] 增加自动化冒烟测试：Feed 解析、正文抽取、AI mock、PDF、路由选择
 - [ ] 在真实窗口点击验证 AI 概览 Markdown/PDF 保存对话框（已验证按钮、IPC 与 PDF 渲染器）
 - [ ] 视反馈考虑原生全屏、画笔与 PDF 结合、笔记区位置优化
-- [ ] 在集显/低端设备实测 WebGL 光学玻璃帧率，必要时降低像素上限或增加关闭开关
+- [ ] 在集显/低端设备实测 WebGL 光学玻璃帧率，必要时降低像素上限
+- [x] 增加运行时「关闭光学玻璃」开关（主题面板/设置）与 4 种背景模式
+- [ ] 在真实窗口验证 18 项材质滑块、光学开关与内置图片背景的手感
 
 ## 最近变化
 
+- 2026-11-25 — 外观与设置对齐更新后的 `glass-workspace-ui`：同步光学核心到 18 项 `GlassParams`，主题面板/设置新增光学开关、4 种背景（含内置 Optical Chart）、背景漂移，材质面板改为 568px 2×2 分组；macOS 品牌改为文字在左、logo 在右；详见 [topics/ui-liquid-glass.md](topics/ui-liquid-glass.md)
 - 2026-11-25 — 新增英文词典：阅读器双击英文单词，Cambridge 英英 + 英汉释义与例句，Wiktionary 英英回退，主进程抓取与 30 天缓存；详见 [topics/dictionary.md](topics/dictionary.md)
 - 2026-11-25 — 应用 `glass-workspace-ui` 工作台规范：工具栏拆为导航/操作两组玻璃胶囊（32px 按钮、18px stroke-2 图标），新增侧栏折叠与拖拽调宽，主题面板升级为 348px 8 主题 + 玻璃强度 + 灰度 + 光学背景 + 材质参数面板；详见 [history/2026-11-25.md](history/2026-11-25.md)
 - 2026-11-24 — 侧栏重设计：浏览/我的/资讯源/新闻源分组，统一行高与计数样式，active 左侧光条，底部同步卡片；取消行级光学玻璃，侧栏保留单块玻璃

@@ -1,5 +1,6 @@
 import { BACKGROUND_FRAG, FULLSCREEN_VERT, GLASS_FRAG, IMAGE_BACKGROUND_FRAG } from "./shaders.js";
-const MAX_SHAPES = 40;
+import { resolveGlassStyle } from "./types.js";
+const MAX_SHAPES = 32;
 function compileShader(gl, type, source) {
     const shader = gl.createShader(type);
     if (!shader)
@@ -49,65 +50,72 @@ function createProgram(gl, fragmentSource) {
  *   2. the glass composite, which samples and bends that environment.
  */
 export class GlassRenderer {
-    canvas;
-    gl;
-    registry;
-    background;
-    imageBackground;
-    glass;
-    vao;
-    fbo = null;
-    bgTexture = null;
-    imageTexture = null;
-    imageAspect = 1;
-    hasImage = false;
-    imageLoadToken = 0;
-    width = 1;
-    height = 1;
-    dpr = 1;
-    maxLod = 0;
-    params = {
-        ior: 1.55,
-        thickness: 52,
-        dispersion: 0.4,
-        roughness: 0.06,
-        bevel: 36,
-    };
-    palette = {
-        baseTop: [0.977, 0.963, 0.944],
-        baseBot: [0.902, 0.931, 0.966],
-        blobA: [0.94, 0.2, 0.42],
-        blobB: [0.35, 0.24, 0.95],
-        blobC: [0.1, 0.72, 0.92],
-        blobD: [0.1, 0.82, 0.65],
-        blobE: [1.0, 0.55, 0.16],
-        stageGlow: [0.52, 0.42, 1.0],
-        cornerGlow: [0.28, 0.52, 1.0],
-        ink: [0.075, 0.08, 0.11],
-        blobStrength: 0.46,
-    };
-    theme = 1;
-    themeTarget = 1;
-    backgroundMode = "clean";
-    solidColor = [0.86, 0.894, 0.949];
-    pointer = { x: 0, y: 0 };
-    pointerTarget = { x: 0, y: 0 };
-    time = 0;
-    lastFrame = 0;
-    raf = 0;
-    disposed = false;
-    rectData = new Float32Array(MAX_SHAPES * 4);
-    propsData = new Float32Array(MAX_SHAPES * 4);
-    tintData = new Float32Array(MAX_SHAPES * 4);
-    extraData = new Float32Array(MAX_SHAPES * 4);
-    handlePointer = (event) => {
-        this.pointerTarget.x = event.clientX;
-        this.pointerTarget.y = event.clientY;
-    };
-    handleVisibility = () => {
-        this.lastFrame = 0;
-    };
     constructor(canvas, registry) {
+        this.fbo = null;
+        this.bgTexture = null;
+        this.imageTexture = null;
+        this.imageAspect = 1;
+        this.hasImage = false;
+        this.imageLoadToken = 0;
+        this.width = 1;
+        this.height = 1;
+        this.dpr = 1;
+        this.maxLod = 0;
+        this.params = {
+            ior: 1.55,
+            thickness: 52,
+            dispersion: 0.4,
+            roughness: 0.06,
+            bevel: 36,
+        };
+        this.style = resolveGlassStyle();
+        this.theme = 1;
+        this.themeTarget = 1;
+        this.backgroundMode = "clean";
+        this.solidColor = [0.86, 0.894, 0.949];
+        this.pointer = { x: 0, y: 0 };
+        this.pointerTarget = { x: 0, y: 0 };
+        this.time = 0;
+        this.lastFrame = 0;
+        this.raf = 0;
+        this.disposed = false;
+        this.reducedMotion = false;
+        this.motionQuery = null;
+        this.backgroundAnimation = false;
+        this.rectData = new Float32Array(MAX_SHAPES * 4);
+        this.propsData = new Float32Array(MAX_SHAPES * 4);
+        this.tintData = new Float32Array(MAX_SHAPES * 4);
+        this.extraData = new Float32Array(MAX_SHAPES * 4);
+        this.handlePointer = (event) => {
+            this.pointerTarget.x = event.clientX;
+            this.pointerTarget.y = event.clientY;
+        };
+        this.handleVisibility = () => {
+            this.lastFrame = 0;
+        };
+        this.handleMotionPreference = (event) => {
+            this.reducedMotion = event.matches;
+        };
+        this.frame = (nowMs) => {
+            if (this.disposed)
+                return;
+            const now = nowMs / 1000;
+            let dt = this.lastFrame === 0 ? 1 / 60 : now - this.lastFrame;
+            dt = Math.min(Math.max(dt, 0), 0.05);
+            this.lastFrame = now;
+            if (this.backgroundAnimation && !this.reducedMotion)
+                this.time += dt;
+            const follow = 1 - Math.exp(-dt * 3.6);
+            this.theme += (this.themeTarget - this.theme) * follow;
+            const pointerFollow = 1 - Math.exp(-dt * 11);
+            this.pointer.x += (this.pointerTarget.x - this.pointer.x) * pointerFollow;
+            this.pointer.y += (this.pointerTarget.y - this.pointer.y) * pointerFollow;
+            this.registry.update(dt);
+            this.resizeIfNeeded();
+            const shapes = this.registry.collect();
+            this.render(shapes);
+            this.raf = requestAnimationFrame(this.frame);
+        };
         this.canvas = canvas;
         this.registry = registry;
         const gl = canvas.getContext("webgl2", {
@@ -135,15 +143,17 @@ export class GlassRenderer {
         gl.disable(gl.DEPTH_TEST);
         gl.disable(gl.BLEND);
         gl.disable(gl.CULL_FACE);
+        if (typeof window.matchMedia === "function") {
+            this.motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+            this.reducedMotion = this.motionQuery.matches;
+            this.motionQuery.addEventListener("change", this.handleMotionPreference);
+        }
         window.addEventListener("pointermove", this.handlePointer, { passive: true });
         document.addEventListener("visibilitychange", this.handleVisibility);
     }
     setParams(params) {
         this.params = params;
-    }
-    /** Replaces the procedural environment palette (host design tokens). */
-    setPalette(palette) {
-        this.palette = palette;
+        this.style = resolveGlassStyle(params);
     }
     setTheme(theme, immediate = false) {
         this.themeTarget = theme === "light" ? 1 : 0;
@@ -152,6 +162,14 @@ export class GlassRenderer {
     }
     setBackground(mode) {
         this.backgroundMode = mode;
+    }
+    /**
+     * Enables the slow drift of the procedural color fields. Off by default:
+     * every background mode renders a static composition until this is enabled.
+     * `prefers-reduced-motion: reduce` still freezes the clock.
+     */
+    setBackgroundAnimation(enabled) {
+        this.backgroundAnimation = enabled;
     }
     /**
      * Uploads an image and stores it as the custom environment source.
@@ -236,30 +254,11 @@ export class GlassRenderer {
             return;
         this.raf = requestAnimationFrame(this.frame);
     }
-    frame = (nowMs) => {
-        if (this.disposed)
-            return;
-        const now = nowMs / 1000;
-        let dt = this.lastFrame === 0 ? 1 / 60 : now - this.lastFrame;
-        dt = Math.min(Math.max(dt, 0), 0.05);
-        this.lastFrame = now;
-        this.time += dt;
-        const follow = 1 - Math.exp(-dt * 3.6);
-        this.theme += (this.themeTarget - this.theme) * follow;
-        const pointerFollow = 1 - Math.exp(-dt * 11);
-        this.pointer.x += (this.pointerTarget.x - this.pointer.x) * pointerFollow;
-        this.pointer.y += (this.pointerTarget.y - this.pointer.y) * pointerFollow;
-        this.registry.update(dt);
-        this.resizeIfNeeded();
-        const shapes = this.registry.collect();
-        this.render(shapes);
-        this.raf = requestAnimationFrame(this.frame);
-    };
     resizeIfNeeded() {
         let dpr = Math.min(window.devicePixelRatio || 1, 2);
         const cssW = Math.max(1, this.canvas.clientWidth);
         const cssH = Math.max(1, this.canvas.clientHeight);
-        const maxPixels = 4_500_000;
+        const maxPixels = 4500000;
         const pixels = cssW * cssH * dpr * dpr;
         if (pixels > maxPixels)
             dpr *= Math.sqrt(maxPixels / pixels);
@@ -324,18 +323,6 @@ export class GlassRenderer {
                     ? 2
                     : 0);
             this.uniform3f(this.background, "uSolidColor", this.solidColor[0], this.solidColor[1], this.solidColor[2]);
-            const p = this.palette;
-            this.uniform3f(this.background, "uBaseTop", p.baseTop[0], p.baseTop[1], p.baseTop[2]);
-            this.uniform3f(this.background, "uBaseBot", p.baseBot[0], p.baseBot[1], p.baseBot[2]);
-            this.uniform3f(this.background, "uBlobA", p.blobA[0], p.blobA[1], p.blobA[2]);
-            this.uniform3f(this.background, "uBlobB", p.blobB[0], p.blobB[1], p.blobB[2]);
-            this.uniform3f(this.background, "uBlobC", p.blobC[0], p.blobC[1], p.blobC[2]);
-            this.uniform3f(this.background, "uBlobD", p.blobD[0], p.blobD[1], p.blobD[2]);
-            this.uniform3f(this.background, "uBlobE", p.blobE[0], p.blobE[1], p.blobE[2]);
-            this.uniform3f(this.background, "uStageGlow", p.stageGlow[0], p.stageGlow[1], p.stageGlow[2]);
-            this.uniform3f(this.background, "uCornerGlow", p.cornerGlow[0], p.cornerGlow[1], p.cornerGlow[2]);
-            this.uniform3f(this.background, "uInk", p.ink[0], p.ink[1], p.ink[2]);
-            this.uniform1f(this.background, "uBlobStrength", p.blobStrength);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -384,6 +371,18 @@ export class GlassRenderer {
         this.uniform1f(this.glass, "uDispersion", this.params.dispersion);
         this.uniform1f(this.glass, "uRoughness", this.params.roughness);
         this.uniform1f(this.glass, "uBevel", this.params.bevel);
+        this.uniform1f(this.glass, "uShadowLight", this.style.shadowLight);
+        this.uniform1f(this.glass, "uShadowDark", this.style.shadowDark);
+        this.uniform1f(this.glass, "uShadowSoftness", this.style.shadowSoftness);
+        this.uniform2f(this.glass, "uShadowOffset", this.style.shadowOffsetX, this.style.shadowOffsetY);
+        this.uniform1f(this.glass, "uRimWidth", this.style.rimWidth);
+        this.uniform1f(this.glass, "uRimBase", this.style.rimBase);
+        this.uniform1f(this.glass, "uRimFacing", this.style.rimFacing);
+        this.uniform1f(this.glass, "uRimTop", this.style.rimTop);
+        this.uniform1f(this.glass, "uRimStrength", this.style.rimStrength);
+        this.uniform1f(this.glass, "uSpecularStrength", this.style.specularStrength);
+        this.uniform1f(this.glass, "uFresnelStrength", this.style.fresnelStrength);
+        this.uniform1f(this.glass, "uInnerGlowStrength", this.style.innerGlowStrength);
         this.uniform1i(this.glass, "uShapeCount", shapeCount);
         this.uniform4fv(this.glass, "uRect", this.rectData);
         this.uniform4fv(this.glass, "uProps", this.propsData);
@@ -424,6 +423,7 @@ export class GlassRenderer {
         cancelAnimationFrame(this.raf);
         window.removeEventListener("pointermove", this.handlePointer);
         document.removeEventListener("visibilitychange", this.handleVisibility);
+        this.motionQuery?.removeEventListener("change", this.handleMotionPreference);
         const gl = this.gl;
         if (this.bgTexture)
             gl.deleteTexture(this.bgTexture);
