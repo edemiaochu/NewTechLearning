@@ -18,15 +18,17 @@
 :root[data-theme="aurora"] {
   color-scheme: dark;
 
-  /* ---------- Surfaces ---------- */
+  /* ---------- Surfaces ----------
+     `--bg-*-base` is the unscaled surface. The public `--bg-*` values are
+     derived at the end of this file and scaled by `--glass-alpha`. */
   --bg-app: #191b23;
   --bg-viewer: #191b23;
-  --bg-toolbar: rgba(16, 18, 26, 0.55);
-  --bg-cluster: rgba(16, 18, 26, 0.42);
-  --bg-cluster-hover: rgba(16, 18, 26, 0.46);
-  --bg-panel: rgba(14, 16, 24, 0.72);
-  --bg-sidebar: rgba(22, 24, 32, 0.55);
-  --bg-modal: rgba(20, 22, 32, 0.92);
+  --bg-toolbar-base: rgba(16, 18, 26, 0.55);
+  --bg-cluster-base: rgba(16, 18, 26, 0.42);
+  --bg-cluster-hover-base: rgba(16, 18, 26, 0.46);
+  --bg-panel-base: rgba(14, 16, 24, 0.72);
+  --bg-sidebar-base: rgba(22, 24, 32, 0.55);
+  --bg-modal-base: rgba(20, 22, 32, 0.92);
   --bg-surface: rgba(255, 255, 255, 0.05);
   --bg-surface-hover: rgba(255, 255, 255, 0.12);
   --bg-input: rgba(255, 255, 255, 0.06);
@@ -84,6 +86,7 @@
   /* Host-side depth for WebGL glass: the shader no longer draws a contact
      shadow, so floating chrome relies on CSS for separation. */
   --shadow-optical: 0 12px 30px rgba(0, 0, 0, 0.24), 0 2px 8px rgba(0, 0, 0, 0.14);
+  --shadow-optical-panel: 0 0 34px rgba(0, 0, 0, 0.18);
 
   /* ---------- Scrollbar ---------- */
   --scrollbar-thumb: #3c3c4a;
@@ -117,6 +120,26 @@
   /* Neutral surface tint for the WebGL optical material. The shader derives
      the dark-theme variant from it, so every theme shares the same value. */
   --glass-optics-tint: #ffffff;
+
+  /* ---------- Workspace cluster edges ---------- */
+  --cluster-edge-top: rgba(255, 255, 255, 0.18);
+  --cluster-edge-bottom: rgba(255, 255, 255, 0.05);
+  --cluster-edge-left: rgba(255, 255, 255, 0.06);
+  --cluster-edge-right: rgba(var(--accent-secondary-rgb), 0.07);
+  --cluster-inner-glow: inset 0 0 20px rgba(255, 255, 255, 0.035);
+  --cluster-sweep-top: rgba(255, 255, 255, 0.12);
+  --cluster-sweep-bottom: rgba(255, 255, 255, 0.035);
+  --cluster-specular: rgba(255, 255, 255, 0.14);
+  --cluster-refraction: rgba(var(--accent-secondary-rgb), 0.06);
+  --cluster-border: var(--border-hover);
+  --cluster-border-hover: var(--border-strong);
+  --cluster-rim: linear-gradient(
+    135deg,
+    var(--cluster-edge-top),
+    var(--cluster-edge-left) 28%,
+    var(--cluster-edge-bottom) 58%,
+    var(--cluster-edge-right)
+  );
 
   --shadow-toolbar:
     0 14px 50px var(--shadow-color),
@@ -196,12 +219,12 @@
 
   --bg-app: #f3f4f6;
   --bg-viewer: #f3f4f6;
-  --bg-toolbar: rgba(255, 255, 255, 0.85);
-  --bg-cluster: rgba(255, 255, 255, 0.72);
-  --bg-cluster-hover: rgba(255, 255, 255, 0.78);
-  --bg-panel: rgba(255, 255, 255, 0.95);
-  --bg-sidebar: rgba(255, 255, 255, 0.8);
-  --bg-modal: rgba(255, 255, 255, 0.95);
+  --bg-toolbar-base: rgba(255, 255, 255, 0.85);
+  --bg-cluster-base: rgba(255, 255, 255, 0.72);
+  --bg-cluster-hover-base: rgba(255, 255, 255, 0.78);
+  --bg-panel-base: rgba(255, 255, 255, 0.95);
+  --bg-sidebar-base: rgba(255, 255, 255, 0.8);
+  --bg-modal-base: rgba(255, 255, 255, 0.95);
   --bg-surface: rgba(0, 0, 0, 0.04);
   --bg-surface-hover: rgba(0, 0, 0, 0.1);
   --bg-input: rgba(0, 0, 0, 0.05);
@@ -234,6 +257,19 @@
   --shadow-panel: rgba(0, 0, 0, 0.18);
   --shadow-modal-color: rgba(0, 0, 0, 0.3);
   --shadow-optical: 0 12px 30px rgba(86, 84, 126, 0.14), 0 2px 8px rgba(86, 84, 126, 0.08);
+  --shadow-optical-panel: 0 0 34px rgba(86, 84, 126, 0.1);
+
+  --cluster-edge-top: rgba(255, 255, 255, 0.96);
+  --cluster-edge-bottom: rgba(255, 255, 255, 0.42);
+  --cluster-edge-left: rgba(255, 255, 255, 0.8);
+  --cluster-edge-right: rgba(255, 255, 255, 0.5);
+  --cluster-inner-glow: inset 0 0 24px rgba(255, 255, 255, 0.32);
+  --cluster-sweep-top: rgba(255, 255, 255, 0.5);
+  --cluster-sweep-bottom: rgba(255, 255, 255, 0.18);
+  --cluster-specular: rgba(255, 255, 255, 0.68);
+  --cluster-refraction: rgba(191, 219, 254, 0.32);
+  --cluster-border: rgba(255, 255, 255, 0.5);
+  --cluster-border-hover: rgba(255, 255, 255, 0.78);
 
   --scrollbar-thumb: #cbd5e1;
   --scrollbar-thumb-hover: #94a3b8;
@@ -250,12 +286,12 @@
 :root[data-theme="ocean"] {
   --bg-app: #0f1822;
   --bg-viewer: #0f1822;
-  --bg-toolbar: rgba(8, 22, 34, 0.55);
-  --bg-cluster: rgba(8, 22, 34, 0.42);
-  --bg-cluster-hover: rgba(8, 22, 34, 0.46);
-  --bg-panel: rgba(6, 18, 30, 0.72);
-  --bg-sidebar: rgba(12, 26, 38, 0.55);
-  --bg-modal: rgba(10, 22, 34, 0.92);
+  --bg-toolbar-base: rgba(8, 22, 34, 0.55);
+  --bg-cluster-base: rgba(8, 22, 34, 0.42);
+  --bg-cluster-hover-base: rgba(8, 22, 34, 0.46);
+  --bg-panel-base: rgba(6, 18, 30, 0.72);
+  --bg-sidebar-base: rgba(12, 26, 38, 0.55);
+  --bg-modal-base: rgba(10, 22, 34, 0.92);
 
   --accent-primary: #38bdf8;
   --accent-secondary: #2dd4bf;
@@ -273,12 +309,12 @@
 :root[data-theme="forest"] {
   --bg-app: #101a14;
   --bg-viewer: #101a14;
-  --bg-toolbar: rgba(8, 22, 14, 0.55);
-  --bg-cluster: rgba(8, 22, 14, 0.42);
-  --bg-cluster-hover: rgba(8, 22, 14, 0.46);
-  --bg-panel: rgba(6, 18, 10, 0.72);
-  --bg-sidebar: rgba(12, 26, 18, 0.55);
-  --bg-modal: rgba(10, 22, 14, 0.92);
+  --bg-toolbar-base: rgba(8, 22, 14, 0.55);
+  --bg-cluster-base: rgba(8, 22, 14, 0.42);
+  --bg-cluster-hover-base: rgba(8, 22, 14, 0.46);
+  --bg-panel-base: rgba(6, 18, 10, 0.72);
+  --bg-sidebar-base: rgba(12, 26, 18, 0.55);
+  --bg-modal-base: rgba(10, 22, 14, 0.92);
 
   --accent-primary: #4ade80;
   --accent-secondary: #2dd4bf;
@@ -296,12 +332,12 @@
 :root[data-theme="ember"] {
   --bg-app: #1a1210;
   --bg-viewer: #1a1210;
-  --bg-toolbar: rgba(30, 16, 12, 0.55);
-  --bg-cluster: rgba(30, 16, 12, 0.42);
-  --bg-cluster-hover: rgba(30, 16, 12, 0.46);
-  --bg-panel: rgba(26, 12, 9, 0.72);
-  --bg-sidebar: rgba(34, 18, 14, 0.55);
-  --bg-modal: rgba(30, 14, 11, 0.92);
+  --bg-toolbar-base: rgba(30, 16, 12, 0.55);
+  --bg-cluster-base: rgba(30, 16, 12, 0.42);
+  --bg-cluster-hover-base: rgba(30, 16, 12, 0.46);
+  --bg-panel-base: rgba(26, 12, 9, 0.72);
+  --bg-sidebar-base: rgba(34, 18, 14, 0.55);
+  --bg-modal-base: rgba(30, 14, 11, 0.92);
 
   --accent-primary: #fb923c;
   --accent-secondary: #f43f5e;
@@ -329,12 +365,12 @@
 :root[data-theme="violet"] {
   --bg-app: #1b1423;
   --bg-viewer: #1b1423;
-  --bg-toolbar: rgba(30, 20, 40, 0.55);
-  --bg-cluster: rgba(30, 20, 40, 0.42);
-  --bg-cluster-hover: rgba(30, 20, 40, 0.46);
-  --bg-panel: rgba(26, 16, 36, 0.72);
-  --bg-sidebar: rgba(36, 24, 48, 0.55);
-  --bg-modal: rgba(30, 18, 40, 0.92);
+  --bg-toolbar-base: rgba(30, 20, 40, 0.55);
+  --bg-cluster-base: rgba(30, 20, 40, 0.42);
+  --bg-cluster-hover-base: rgba(30, 20, 40, 0.46);
+  --bg-panel-base: rgba(26, 16, 36, 0.72);
+  --bg-sidebar-base: rgba(36, 24, 48, 0.55);
+  --bg-modal-base: rgba(30, 18, 40, 0.92);
 
   --accent-primary: #c084fc;
   --accent-secondary: #f472b6;
@@ -347,4 +383,76 @@
 
   --scrollbar-thumb: #443054;
   --scrollbar-thumb-hover: #5a426e;
+}
+
+/* =========================================================
+   Grayscale themes — pure black and graphite.
+   One knob (`--theme-gray`, 0–20) derives every surface, so
+   the theme panel's grayscale slider re-tints the whole app
+   without touching geometry. JS writes the live value.
+   ========================================================= */
+:root[data-theme="black"] {
+  --theme-gray: 3;
+}
+
+:root[data-theme="graphite"] {
+  --theme-gray: 14;
+}
+
+:root[data-theme="black"],
+:root[data-theme="graphite"] {
+  color-scheme: dark;
+
+  --gray-solid: color-mix(in srgb, #ffffff calc(var(--theme-gray) * 1%), #000000);
+  --gray-deep: color-mix(in srgb, var(--gray-solid) 82%, #000000);
+  --gray-soft: color-mix(in srgb, var(--gray-solid) 94%, #ffffff);
+
+  --bg-app: var(--gray-solid);
+  --bg-viewer: var(--gray-solid);
+  --bg-toolbar-base: color-mix(in srgb, var(--gray-deep) 58%, transparent);
+  --bg-cluster-base: color-mix(in srgb, var(--gray-deep) 38%, transparent);
+  --bg-cluster-hover-base: color-mix(in srgb, var(--gray-deep) 46%, transparent);
+  --bg-panel-base: color-mix(in srgb, var(--gray-deep) 82%, transparent);
+  --bg-sidebar-base: color-mix(in srgb, var(--gray-soft) 55%, transparent);
+  --bg-modal-base: color-mix(in srgb, var(--gray-deep) 96%, transparent);
+
+  --accent-primary: #9a9aa4;
+  --accent-secondary: #6b6b74;
+  --accent-primary-rgb: 154, 154, 164;
+  --accent-secondary-rgb: 107, 107, 116;
+
+  --ambient-purple: rgba(255, 255, 255, 0.05);
+  --ambient-cyan: rgba(255, 255, 255, 0.035);
+  --ambient-blue: rgba(255, 255, 255, 0.025);
+
+  --scrollbar-thumb: #4a4a52;
+  --scrollbar-thumb-hover: #5c5c66;
+}
+
+/* =========================================================
+   Glass strength — `--glass-alpha` scales the seven floating
+   surfaces only. Text, borders, buttons and the WebGL material
+   keep their contrast and geometry.
+   ========================================================= */
+:root {
+  --glass-alpha: 1;
+
+  --bg-toolbar: color-mix(in srgb, var(--bg-toolbar-base) calc(100% * var(--glass-alpha)), transparent);
+  --bg-cluster: color-mix(in srgb, var(--bg-cluster-base) calc(100% * var(--glass-alpha)), transparent);
+  --bg-cluster-hover: color-mix(in srgb, var(--bg-cluster-hover-base) calc(100% * var(--glass-alpha)), transparent);
+  --bg-panel: color-mix(in srgb, var(--bg-panel-base) calc(100% * var(--glass-alpha)), transparent);
+  --bg-sidebar: color-mix(in srgb, var(--bg-sidebar-base) calc(100% * var(--glass-alpha)), transparent);
+  --bg-modal: color-mix(in srgb, var(--bg-modal-base) calc(100% * var(--glass-alpha)), transparent);
+}
+
+/* Browsers without color-mix keep the full-strength surface. */
+@supports not (color: color-mix(in srgb, #000 50%, transparent)) {
+  :root {
+    --bg-toolbar: var(--bg-toolbar-base);
+    --bg-cluster: var(--bg-cluster-base);
+    --bg-cluster-hover: var(--bg-cluster-hover-base);
+    --bg-panel: var(--bg-panel-base);
+    --bg-sidebar: var(--bg-sidebar-base);
+    --bg-modal: var(--bg-modal-base);
+  }
 }

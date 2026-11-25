@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('radar', {
   refreshFeeds: (options) => ipcRenderer.invoke('feeds:refresh', options || {}),
   clearFeeds: () => ipcRenderer.invoke('feeds:clear'),
   loadArticle: (item) => ipcRenderer.invoke('article:load', item),
+  lookupDictionary: (word, options) =>
+    ipcRenderer.invoke('dictionary:lookup', { word, force: !!options?.force }),
+  clearDictionaryCache: () => ipcRenderer.invoke('dictionary:clear'),
   summarizeAI: (payload) => ipcRenderer.invoke('ai:summarize', payload),
   summarizeNewsDigest: (payload) => ipcRenderer.invoke('news:digest', payload),
   getSettings: () => ipcRenderer.invoke('settings:get'),

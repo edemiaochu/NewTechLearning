@@ -89,7 +89,8 @@ html.lg-webgl-ready .app-search-input {
 /* ---------- Toolbar cluster / window controls ---------- */
 html.lg-webgl-ready .app-tool-cluster,
 html.lg-webgl-ready .app-tool-cluster:hover,
-html.lg-webgl-ready .lg-window-controls {
+html.lg-webgl-ready .app-nav-cluster,
+html.lg-webgl-ready .app-nav-cluster:hover {
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;

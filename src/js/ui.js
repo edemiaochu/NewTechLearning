@@ -9,6 +9,12 @@ const ICONS = {
     '<circle cx="12" cy="12" r="9"/><circle cx="8.6" cy="9.8" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="7.6" r="1" fill="currentColor" stroke="none"/><circle cx="15.4" cy="9.8" r="1" fill="currentColor" stroke="none"/><path d="M12 21c1.7 0 3-1.3 3-3 0-.9-.4-1.7-1-2.2"/>',
   settings:
     '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  sidebar:
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>',
+  sliders:
+    '<line x1="4" y1="7" x2="20" y2="7"/><circle cx="9" cy="7" r="2.2" fill="currentColor" stroke="none"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="15" cy="17" r="2.2" fill="currentColor" stroke="none"/>',
+  reset:
+    '<path d="M3.5 13a8.5 8.5 0 1 0 2.4-7.2"/><path d="M3.5 4.5V12H11"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   'chevron-down': '<path d="m6 9 6 6 6-6"/>',
   'arrow-right': '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -64,7 +70,8 @@ export function icon(name, options = {}) {
   const fill = options.fill ? 'currentColor' : 'none';
   const stroke = options.fill ? 'none' : 'currentColor';
   const size = options.size ? ` width="${options.size}" height="${options.size}"` : '';
-  return `<svg viewBox="0 0 24 24"${size} fill="${fill}" stroke="${stroke}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+  const strokeWidth = options.strokeWidth || 1.7;
+  return `<svg viewBox="0 0 24 24"${size} fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 }
 
 export function esc(value) {

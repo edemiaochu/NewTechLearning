@@ -48,6 +48,30 @@
           </div>
 
           <div class="app-toolbar-title" id="toolbar-title">概览</div>
+
+          <div class="lg-cluster app-nav-cluster" role="toolbar" aria-label="视图导航">
+            <button
+              class="lg-icon-btn app-sidebar-toggle"
+              id="sidebar-toggle"
+              type="button"
+              title="显示 / 隐藏侧栏"
+              aria-label="显示 / 隐藏侧栏"
+              aria-pressed="false"
+            >
+              <span class="lg-icon" id="sidebar-toggle-icon"></span>
+            </button>
+            <div class="lg-divider" aria-hidden="true"></div>
+            <button class="lg-icon-btn app-nav-btn" type="button" data-nav="overview" title="概览" aria-label="概览">
+              <span class="lg-icon" data-icon="overview"></span>
+            </button>
+            <button class="lg-icon-btn app-nav-btn" type="button" data-nav="news" title="今日热点" aria-label="今日热点">
+              <span class="lg-icon" data-icon="flame"></span>
+            </button>
+            <button class="lg-icon-btn app-nav-btn" type="button" data-nav="all" title="全部资讯" aria-label="全部资讯">
+              <span class="lg-icon" data-icon="rss"></span>
+            </button>
+          </div>
+
           <div class="app-toolbar-spacer"></div>
 
           <label class="app-search" for="search">
@@ -67,11 +91,12 @@
             </button>
           </label>
 
-          <div class="lg-cluster app-tool-cluster">
+          <div class="lg-cluster app-tool-cluster" role="toolbar" aria-label="应用操作">
             <button class="lg-icon-btn" id="refresh-btn" type="button" title="刷新资讯 (R)" aria-label="刷新资讯">
               <span class="lg-icon" id="refresh-icon"></span>
             </button>
-            <button class="lg-icon-btn" id="theme-btn" type="button" title="切换主题" aria-label="切换主题">
+            <div class="lg-divider" aria-hidden="true"></div>
+            <button class="lg-icon-btn" id="theme-btn" type="button" title="外观与主题" aria-label="外观与主题">
               <span class="lg-icon" id="theme-icon"></span>
             </button>
             <button class="lg-icon-btn" id="settings-btn" type="button" title="设置" aria-label="设置">
@@ -101,6 +126,13 @@
 
       <div class="lg-content app-body">
         <aside class="lg-sidebar app-sidebar" id="sidebar" aria-label="导航"></aside>
+        <div
+          class="lg-resizer app-sidebar-resizer"
+          id="sidebar-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整侧栏宽度"
+        ></div>
         <main class="lg-main app-main lg-scroll" id="main" tabindex="-1"></main>
         <div class="lg-resizer split-resizer" id="split-resizer" hidden aria-hidden="true"></div>
         <div class="split-reader" id="reader-split" hidden></div>

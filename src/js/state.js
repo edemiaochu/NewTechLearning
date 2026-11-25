@@ -2,6 +2,12 @@
 
 const LS = {
   theme: 'fr.theme',
+  themeGray: 'fr.themeGray',
+  glassAlpha: 'fr.glassAlpha',
+  glassParams: 'fr.glassParams',
+  sidebarWidth: 'fr.sidebarWidth',
+  sidebarCollapsed: 'fr.sidebarCollapsed',
+  dictionaryOn: 'fr.dictionaryOn',
   glassBackground: 'fr.glassBackground',
   read: 'fr.read',
   saved: 'fr.saved',
@@ -19,7 +25,16 @@ const LS = {
   ink: 'fr.ink',
 };
 
-const THEMES = ['aurora', 'ocean', 'forest', 'ember', 'violet', 'light'];
+const THEMES = [
+  'aurora',
+  'ocean',
+  'forest',
+  'ember',
+  'violet',
+  'black',
+  'graphite',
+  'light',
+];
 const MAX_READ = 1500;
 const MAX_SAVED = 600;
 const MAX_AI = 30;
@@ -35,6 +50,9 @@ export const state = {
   order: 'mixed',
   query: '',
   theme: 'aurora',
+  themeGray: { black: 3, graphite: 14 },
+  glassAlpha: 100,
+  glassParams: null,
   glassBackground: 'clean',
   read: new Set(),
   saved: new Set(),
@@ -76,7 +94,12 @@ export const state = {
     aiError: null,
     modal: null,
     themeOpen: false,
+    glassParamsOpen: false,
+    dictionaryOn: true,
+    dictionary: null,
     settingsNotice: null,
+    sidebarWidth: 262,
+    sidebarCollapsed: false,
     noteSaving: false,
     readerLayout: 'center',
     splitWidth: 540,
@@ -121,6 +144,42 @@ export function hydrateLocal() {
   if (['clean', 'specimen', 'solid'].includes(glassBackground)) {
     state.glassBackground = glassBackground;
   }
+
+  const rawGlassAlpha = localStorage.getItem(LS.glassAlpha);
+  if (rawGlassAlpha != null && rawGlassAlpha !== '') {
+    const glassAlpha = Number(rawGlassAlpha);
+    if (Number.isFinite(glassAlpha) && glassAlpha >= 0 && glassAlpha <= 100) {
+      state.glassAlpha = glassAlpha;
+    }
+  }
+  document.documentElement.style.setProperty('--glass-alpha', String(state.glassAlpha / 100));
+
+  const grays = readJSON(LS.themeGray, null);
+  if (grays && typeof grays === 'object') {
+    for (const key of ['black', 'graphite']) {
+      const value = Number(grays[key]);
+      if (Number.isFinite(value)) state.themeGray[key] = Math.min(20, Math.max(0, value));
+    }
+  }
+  if (state.theme === 'black' || state.theme === 'graphite') {
+    document.documentElement.style.setProperty(
+      '--theme-gray',
+      String(state.themeGray[state.theme])
+    );
+  }
+
+  const glassParams = readJSON(LS.glassParams, null);
+  state.glassParams =
+    glassParams && typeof glassParams === 'object' && !Array.isArray(glassParams)
+      ? glassParams
+      : null;
+
+  const sidebarWidth = Number(localStorage.getItem(LS.sidebarWidth));
+  if (Number.isFinite(sidebarWidth) && sidebarWidth >= 200 && sidebarWidth <= 380) {
+    state.ui.sidebarWidth = sidebarWidth;
+  }
+  state.ui.sidebarCollapsed = localStorage.getItem(LS.sidebarCollapsed) === '1';
+  state.ui.dictionaryOn = localStorage.getItem(LS.dictionaryOn) !== '0';
 
   const read = readJSON(LS.read, []);
   state.read = new Set(Array.isArray(read) ? read.slice(-MAX_READ) : []);
@@ -324,6 +383,14 @@ export function applyTheme(theme) {
   const next = THEMES.includes(theme) ? theme : 'aurora';
   state.theme = next;
   document.documentElement.dataset.theme = next;
+  if (next === 'black' || next === 'graphite') {
+    document.documentElement.style.setProperty(
+      '--theme-gray',
+      String(state.themeGray[next])
+    );
+  } else {
+    document.documentElement.style.removeProperty('--theme-gray');
+  }
   try {
     localStorage.setItem(LS.theme, next);
   } catch {
@@ -331,6 +398,52 @@ export function applyTheme(theme) {
   }
   if (window.radar?.setTheme) window.radar.setTheme(next);
   return next;
+}
+
+/** Scale the seven floating glass surfaces without touching text or geometry. */
+export function applyGlassAlpha(value) {
+  const numeric = Number(value);
+  const next = Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 100;
+  state.glassAlpha = next;
+  document.documentElement.style.setProperty('--glass-alpha', String(next / 100));
+  try {
+    localStorage.setItem(LS.glassAlpha, String(next));
+  } catch {
+    // Ignore.
+  }
+  return next;
+}
+
+/** Grayscale knob for `black` / `graphite`; ignored by the other themes. */
+export function applyThemeGray(value) {
+  const theme = state.theme;
+  if (theme !== 'black' && theme !== 'graphite') return null;
+  const numeric = Number(value);
+  const next = Number.isFinite(numeric) ? Math.min(20, Math.max(0, Math.round(numeric))) : 3;
+  state.themeGray[theme] = next;
+  document.documentElement.style.setProperty('--theme-gray', String(next));
+  writeJSON(LS.themeGray, state.themeGray);
+  return next;
+}
+
+export function isGrayscaleTheme(theme = state.theme) {
+  return theme === 'black' || theme === 'graphite';
+}
+
+export function setDictionaryOn(enabled) {
+  state.ui.dictionaryOn = !!enabled;
+  try {
+    localStorage.setItem(LS.dictionaryOn, state.ui.dictionaryOn ? '1' : '0');
+  } catch {
+    // Ignore.
+  }
+  return state.ui.dictionaryOn;
+}
+
+export function setGlassParams(params) {
+  state.glassParams = params && typeof params === 'object' ? params : null;
+  writeJSON(LS.glassParams, state.glassParams);
+  return state.glassParams;
 }
 
 export function setGlassBackground(mode) {

@@ -24,6 +24,11 @@ import {
   setNewsDigest,
   clearReadHistory,
   clearFeedCacheLocal,
+  applyGlassAlpha,
+  applyThemeGray,
+  setGlassParams as persistGlassParams,
+  setDictionaryOn,
+  LS,
 } from './state.js';
 import {
   newsItems,
@@ -39,6 +44,7 @@ import {
   renderReaderPanel,
   renderInkStrokes,
   renderFontPopover,
+  renderDictionaryPopover,
   viewTitle,
 } from './views.js';
 import {
@@ -50,7 +56,13 @@ import {
   todayLabel,
   clampText,
 } from './ui.js';
-import { applyGlassBackground, initGlass } from './glass.js';
+import {
+  applyGlassBackground,
+  initGlass,
+  normalizeGlassParams,
+  setGlassParams as applyGlassParams,
+  GLASS_PARAM_FIELDS,
+} from './glass.js';
 
 const api = window.radar;
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -68,6 +80,8 @@ const els = {
   refreshIcon: $('#refresh-icon'),
   themeBtn: $('#theme-btn'),
   settingsBtn: $('#settings-btn'),
+  sidebarToggle: $('#sidebar-toggle'),
+  sidebarResizer: $('#sidebar-resizer'),
   maxBtn: $('#max-btn'),
 };
 
@@ -79,6 +93,7 @@ let autoRefreshTimer = null;
 let noteStatusTimer = null;
 let themePosition = { top: 64, right: 16 };
 let fontPosition = { top: 64, right: 16 };
+let paramsPosition = { top: 64, right: 380 };
 let lastOpenedId = null;
 let splitSignature = '';
 let pdfExporting = false;
@@ -106,7 +121,7 @@ function renderMainOnly(preserveScroll = false) {
 function renderOverlayUI() {
   const hadOverlay = !!els.overlay.querySelector('.reader-overlay, .lg-overlay');
   const previousScroll = els.overlay.querySelector('.reader-scroll')?.scrollTop || 0;
-  els.overlay.innerHTML = renderOverlay(themePosition, fontPosition);
+  els.overlay.innerHTML = renderOverlay(themePosition, fontPosition, paramsPosition);
   if (hadOverlay) {
     els.overlay
       .querySelectorAll('.reader-overlay, .reader-panel, .lg-overlay, .lg-modal')
@@ -560,6 +575,14 @@ function renderToolbar() {
   els.toolbarTitle.textContent = viewTitle();
   updateSearchUI();
   updateRefreshButton();
+  document.querySelectorAll('.app-nav-btn').forEach((button) => {
+    const view = button.dataset.nav;
+    const active =
+      state.view === view && (view !== 'all' || state.sourceFilter === 'all');
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  updateSidebarToggle();
 }
 
 function renderAll() {
@@ -601,16 +624,101 @@ function updateMaxIcon(maximized) {
 }
 
 function fillStaticIcons() {
+  const toolbarIcon = (name) => icon(name, { strokeWidth: 2 });
   const searchIcon = $('#search-icon');
-  if (searchIcon) searchIcon.innerHTML = icon('search');
+  if (searchIcon) searchIcon.innerHTML = toolbarIcon('search');
   const clearIcon = $('#search-clear-icon');
-  if (clearIcon) clearIcon.innerHTML = icon('close');
+  if (clearIcon) clearIcon.innerHTML = toolbarIcon('close');
   const refreshIcon = $('#refresh-icon');
-  if (refreshIcon) refreshIcon.innerHTML = icon('refresh');
+  if (refreshIcon) refreshIcon.innerHTML = toolbarIcon('refresh');
   const themeIcon = $('#theme-icon');
-  if (themeIcon) themeIcon.innerHTML = icon('palette');
+  if (themeIcon) themeIcon.innerHTML = toolbarIcon('palette');
   const settingsIcon = $('#settings-icon');
-  if (settingsIcon) settingsIcon.innerHTML = icon('settings');
+  if (settingsIcon) settingsIcon.innerHTML = toolbarIcon('settings');
+  const sidebarIcon = $('#sidebar-toggle-icon');
+  if (sidebarIcon) sidebarIcon.innerHTML = toolbarIcon('sidebar');
+  document.querySelectorAll('.app-nav-btn [data-icon]').forEach((slot) => {
+    slot.innerHTML = toolbarIcon(slot.dataset.icon);
+  });
+  applySidebarLayout();
+}
+
+/* ------------------------------------------------------------------ */
+/* Sidebar layout                                                      */
+/* ------------------------------------------------------------------ */
+
+function sidebarWidth() {
+  return Math.min(380, Math.max(200, Number(state.ui.sidebarWidth) || 262));
+}
+
+function applySidebarLayout() {
+  document.documentElement.style.setProperty('--app-sidebar-w', `${sidebarWidth()}px`);
+  const collapsed = !!state.ui.sidebarCollapsed;
+  if (els.sidebar) els.sidebar.hidden = collapsed;
+  if (els.sidebarResizer) els.sidebarResizer.hidden = collapsed;
+  document.getElementById('app')?.classList.toggle('is-sidebar-collapsed', collapsed);
+  updateSidebarToggle();
+}
+
+function updateSidebarToggle() {
+  if (!els.sidebarToggle) return;
+  const shown = !state.ui.sidebarCollapsed;
+  els.sidebarToggle.classList.toggle('is-collapsed', !shown);
+  els.sidebarToggle.setAttribute('aria-pressed', String(shown));
+  els.sidebarToggle.title = shown ? '隐藏侧栏 (Ctrl+B)' : '显示侧栏 (Ctrl+B)';
+  els.sidebarToggle.setAttribute('aria-label', '显示 / 隐藏侧栏');
+}
+
+function toggleSidebar() {
+  state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed;
+  try {
+    localStorage.setItem(LS.sidebarCollapsed, state.ui.sidebarCollapsed ? '1' : '0');
+  } catch {
+    // Ignore.
+  }
+  applySidebarLayout();
+}
+
+function persistSidebarWidth(width) {
+  state.ui.sidebarWidth = width;
+  try {
+    localStorage.setItem(LS.sidebarWidth, String(width));
+  } catch {
+    // Ignore.
+  }
+}
+
+function bindSidebarResizer() {
+  const resizer = els.sidebarResizer;
+  if (!resizer) return;
+  resizer.addEventListener('pointerdown', (event) => {
+    if (state.ui.sidebarCollapsed) return;
+    event.preventDefault();
+    resizer.classList.add('is-active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    const onMove = (moveEvent) => {
+      state.ui.sidebarWidth = Math.min(380, Math.max(200, Math.round(moveEvent.clientX)));
+      applySidebarLayout();
+    };
+    const onUp = () => {
+      resizer.classList.remove('is-active');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      persistSidebarWidth(sidebarWidth());
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  });
+  resizer.addEventListener('dblclick', () => {
+    state.ui.sidebarWidth = 262;
+    applySidebarLayout();
+    persistSidebarWidth(262);
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -636,7 +744,9 @@ function setView(view, options = {}) {
   if (state.ui.readerLayout !== 'split') closeReader({ silent: true });
   state.ui.modal = null;
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
   state.ui.fontOpen = false;
+  closeDictionary();
   setFontButtonActive();
   persistView();
   syncHash();
@@ -652,7 +762,9 @@ function setSourceFilter(sourceId) {
   state.unreadOnly = false;
   els.search.value = '';
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
   state.ui.fontOpen = false;
+  closeDictionary();
   setFontButtonActive();
   persistView();
   syncHash();
@@ -667,7 +779,9 @@ function setNewsSourceFilter(sourceId) {
   state.unreadOnly = false;
   els.search.value = '';
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
   state.ui.fontOpen = false;
+  closeDictionary();
   setFontButtonActive();
   persistView();
   syncHash();
@@ -716,6 +830,8 @@ async function openReader(id) {
   }
   state.ui.modal = null;
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
+  closeDictionary();
   state.ui.digestOpen = false;
   state.ui.activeItem = item;
   state.ui.article = articleCache.get(id) || null;
@@ -800,7 +916,9 @@ function closeReader(options = {}) {
   state.ui.aiLoading = false;
   state.ui.aiError = null;
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
   state.ui.fontOpen = false;
+  closeDictionary();
   state.ui.penActive = false;
   state.ui.penEraser = false;
   setFontButtonActive();
@@ -1363,7 +1481,9 @@ function openDigestFullscreen() {
   if (state.ui.activeItem) closeReader({ silent: true });
   state.ui.modal = null;
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
   state.ui.fontOpen = false;
+  closeDictionary();
   setFontButtonActive();
   state.ui.digestOpen = true;
   renderSplitReader(true);
@@ -1505,6 +1625,124 @@ function scheduleAutoRefresh() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Dictionary                                                          */
+/* ------------------------------------------------------------------ */
+
+const DICT_WIDTH = 392;
+const DICT_HEIGHT = 468;
+const dictMemory = new Map();
+let dictRequestSeq = 0;
+
+function selectedWord(text) {
+  const raw = String(text || '')
+    .replace(/[’‘]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!raw || raw.length > 48) return null;
+  const word = raw.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '').toLowerCase();
+  if (!/^[a-z][a-z'-]{0,38}$/.test(word)) return null;
+  return word;
+}
+
+function renderDictionaryUI() {
+  els.overlay.querySelector('.dict-popover')?.remove();
+  if (state.ui.dictionary) {
+    els.overlay.insertAdjacentHTML('beforeend', renderDictionaryPopover());
+  }
+}
+
+function closeDictionary() {
+  if (!state.ui.dictionary) return;
+  dictRequestSeq += 1;
+  state.ui.dictionary = null;
+  els.overlay.querySelector('.dict-popover')?.remove();
+}
+
+function fallbackDictUrl(word) {
+  return `https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(word)}`;
+}
+
+function applyDictionaryResult(token, result) {
+  if (dictRequestSeq !== token || !state.ui.dictionary) return;
+  if (result?.ok) {
+    const key = result.word || state.ui.dictionary.word;
+    // Keep offline-only hits out of the memory cache so "联网重查" can
+    // actually hit Cambridge again in this session.
+    if (!result.offlineOnly) {
+      dictMemory.set(key, result);
+      if (dictMemory.size > 80) dictMemory.delete(dictMemory.keys().next().value);
+    }
+    state.ui.dictionary = {
+      ...state.ui.dictionary,
+      word: key,
+      loading: false,
+      data: result,
+      error: null,
+      sourceUrl: result.englishUrl || result.chineseUrl || fallbackDictUrl(key),
+    };
+  } else {
+    const word = state.ui.dictionary.word;
+    state.ui.dictionary = {
+      ...state.ui.dictionary,
+      loading: false,
+      data: null,
+      error: result?.message || '词典查询失败，请检查网络或代理。',
+      sourceUrl: result?.sourceUrl || fallbackDictUrl(word),
+    };
+  }
+  renderDictionaryUI();
+}
+
+function requestDictionary(word, x, y, force = false) {
+  const token = ++dictRequestSeq;
+  const left = Math.max(12, Math.min(x, window.innerWidth - DICT_WIDTH - 12));
+  const top = Math.max(70, Math.min(y, window.innerHeight - DICT_HEIGHT - 12));
+  state.ui.dictionary = {
+    word,
+    loading: true,
+    data: null,
+    error: null,
+    sourceUrl: fallbackDictUrl(word),
+    x: left,
+    y: top,
+  };
+  renderDictionaryUI();
+
+  if (!force) {
+    const cached = dictMemory.get(word);
+    if (cached) {
+      applyDictionaryResult(token, cached);
+      return;
+    }
+  }
+
+  api
+    .lookupDictionary(word, { force })
+    .then((result) => applyDictionaryResult(token, result))
+    .catch((err) => {
+      applyDictionaryResult(token, {
+        ok: false,
+        message: err?.message || '词典查询失败，请检查网络或代理。',
+      });
+    });
+}
+
+function openDictionaryAt(event, word) {
+  requestDictionary(word, event.clientX + 14, event.clientY + 16);
+}
+
+function handleContentDoubleClick(event) {
+  if (!state.ui.dictionaryOn || state.ui.penActive || state.ui.modal) return;
+  const content = event.target.closest('#reader-content');
+  if (!content) return;
+  if (event.target.closest('a, button, input, textarea, select')) return;
+  const selection = window.getSelection?.();
+  const word = selectedWord(selection?.toString());
+  if (!word) return;
+  openDictionaryAt(event, word);
+}
+
+/* ------------------------------------------------------------------ */
 /* Theme                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -1584,8 +1822,10 @@ function toggleFontPopover() {
   }
   const willOpen = !state.ui.fontOpen;
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
   state.ui.fontOpen = willOpen;
   els.overlay.querySelector('.theme-popover')?.remove();
+  els.overlay.querySelector('.glass-params-panel')?.remove();
   els.overlay.querySelector('.font-popover')?.remove();
   if (willOpen) {
     els.overlay.insertAdjacentHTML('beforeend', renderFontPopover(fontPosition));
@@ -1595,8 +1835,10 @@ function toggleFontPopover() {
 
 function closeReaderPopovers() {
   state.ui.themeOpen = false;
+  state.ui.glassParamsOpen = false;
   state.ui.fontOpen = false;
   els.overlay.querySelector('.theme-popover')?.remove();
+  els.overlay.querySelector('.glass-params-panel')?.remove();
   els.overlay.querySelector('.font-popover')?.remove();
   setFontButtonActive();
 }
@@ -1610,18 +1852,35 @@ function toggleThemePopover() {
   state.ui.modal = null;
   state.ui.fontOpen = false;
   state.ui.themeOpen = !state.ui.themeOpen;
+  if (!state.ui.themeOpen) state.ui.glassParamsOpen = false;
   setFontButtonActive();
   renderOverlayUI();
 }
 
+function syncThemePanel() {
+  const popover = els.overlay.querySelector('.theme-popover');
+  if (!popover) return;
+  const grayTheme = state.theme === 'black' || state.theme === 'graphite';
+  const row = popover.querySelector('[data-theme-gray]')?.closest('.theme-slider-row');
+  const input = popover.querySelector('[data-theme-gray]');
+  const output = popover.querySelector('[data-theme-gray-value]');
+  if (row) row.classList.toggle('is-disabled', !grayTheme);
+  if (input) {
+    input.disabled = !grayTheme;
+    input.value = String(grayTheme ? state.themeGray[state.theme] : 3);
+  }
+  if (output) output.textContent = grayTheme ? String(state.themeGray[state.theme]) : '—';
+}
+
 function chooseTheme(theme) {
-  const wasPopover = state.ui.themeOpen;
   applyTheme(theme);
-  state.ui.themeOpen = false;
   document.querySelectorAll('[data-theme-option]').forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.themeOption === theme);
+    const active = button.dataset.themeOption === theme;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-checked', String(active));
   });
-  if (wasPopover) els.overlay.querySelector('.theme-popover')?.remove();
+  // Keep the theme panel open so the grayscale/glass knobs stay reachable.
+  if (state.ui.themeOpen) syncThemePanel();
   toast(`已切换到「${themeLabel(theme)}」主题`);
 }
 
@@ -1630,9 +1889,11 @@ function themeLabel(theme) {
     aurora: '极光',
     ocean: '深海',
     forest: '森林',
-    ember: '余烬',
+    ember: '熔岩',
     violet: '紫罗兰',
-    light: '浅色',
+    black: '纯黑',
+    graphite: '黑灰',
+    light: '明亮',
   };
   return labels[theme] || theme;
 }
@@ -1641,10 +1902,88 @@ function chooseGlassBackground(mode) {
   const next = setGlassBackground(mode);
   applyGlassBackground(next);
   document.querySelectorAll('[data-glass-background]').forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.glassBackground === next);
+    const active = button.dataset.glassBackground === next;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-checked', String(active));
   });
   const labels = { clean: '柔光渐变', specimen: '光学标定', solid: '主题纯色' };
   toast(`光学玻璃背景：${labels[next] || next}`);
+}
+
+function setGlassAlpha(value) {
+  const next = applyGlassAlpha(value);
+  els.overlay.querySelectorAll('[data-glass-alpha-value]').forEach((output) => {
+    output.textContent = `${next}%`;
+  });
+  const settingsOutput = $('#settings-glass-alpha-value');
+  if (settingsOutput) settingsOutput.textContent = `${next}%`;
+}
+
+function setThemeGray(value) {
+  const next = applyThemeGray(value);
+  if (next == null) return;
+  const output = els.overlay.querySelector('[data-theme-gray-value]');
+  if (output) output.textContent = String(next);
+}
+
+function measureParamsPosition() {
+  const panel = els.overlay.querySelector('.theme-popover');
+  const width = 380;
+  if (!panel) {
+    return { top: themePosition.top, right: Math.max(12, themePosition.right + 358) };
+  }
+  const rect = panel.getBoundingClientRect();
+  if (rect.left - width - 10 >= 12) {
+    return { top: rect.top, right: Math.max(12, window.innerWidth - rect.left + 10) };
+  }
+  return { top: rect.bottom + 10, right: Math.max(12, window.innerWidth - rect.right) };
+}
+
+function toggleGlassParams(force) {
+  const next =
+    typeof force === 'boolean' ? force : !state.ui.glassParamsOpen;
+  if (next) {
+    paramsPosition = measureParamsPosition();
+    state.ui.themeOpen = true;
+  }
+  state.ui.glassParamsOpen = next;
+  renderOverlayUI();
+}
+
+function closeGlassParams() {
+  if (!state.ui.glassParamsOpen) return;
+  state.ui.glassParamsOpen = false;
+}
+
+function readGlassParamsFromPanel() {
+  const params = { ...(state.glassParams || {}) };
+  for (const field of GLASS_PARAM_FIELDS) {
+    const input = els.overlay.querySelector(`[data-glass-param="${field.key}"]`);
+    if (!input) continue;
+    const value = Number(input.value);
+    if (Number.isFinite(value)) params[field.key] = value;
+  }
+  return params;
+}
+
+function updateGlassParams() {
+  const params = readGlassParamsFromPanel();
+  const normalized = applyGlassParams(params);
+  persistGlassParams(normalized);
+  for (const field of GLASS_PARAM_FIELDS) {
+    const output = els.overlay.querySelector(
+      `[data-glass-param-value="${field.key}"]`
+    );
+    if (output) output.textContent = String(normalized[field.key]);
+  }
+}
+
+function resetGlassParams() {
+  const defaults = normalizeGlassParams(null);
+  const normalized = applyGlassParams(defaults);
+  persistGlassParams(normalized);
+  renderOverlayUI();
+  toast('光学材质已恢复默认');
 }
 
 /* ------------------------------------------------------------------ */
@@ -1652,6 +1991,13 @@ function chooseGlassBackground(mode) {
 /* ------------------------------------------------------------------ */
 
 function bindEvents() {
+  els.sidebarToggle?.addEventListener('click', (event) => {
+    event.preventDefault();
+    toggleSidebar();
+  });
+
+  bindSidebarResizer();
+
   els.search.addEventListener('input', () => {
     updateSearchUI();
     runSearch();
@@ -1700,9 +2046,19 @@ function bindEvents() {
   api.window.onMaximizeChange?.(updateMaxIcon);
 
   document.addEventListener('click', handleDocumentClick);
+  document.addEventListener('dblclick', handleContentDoubleClick);
   document.addEventListener('change', handleDocumentChange);
   document.addEventListener('input', handleDocumentInput);
   document.addEventListener('keydown', handleDocumentKeydown);
+  els.overlay.addEventListener(
+    'scroll',
+    (event) => {
+      if (state.ui.dictionary && event.target?.closest?.('.reader-scroll')) {
+        closeDictionary();
+      }
+    },
+    true
+  );
   bindSplitResizer();
   bindReaderResize();
   bindReaderWidthGrip();
@@ -1710,9 +2066,15 @@ function bindEvents() {
 }
 
 function handleDocumentClick(event) {
-  if (state.ui.themeOpen || state.ui.fontOpen) {
+  if (state.ui.dictionary && !event.target.closest('.dict-popover')) {
+    closeDictionary();
+  }
+
+  if (state.ui.themeOpen || state.ui.fontOpen || state.ui.glassParamsOpen) {
     const insideTheme =
-      event.target.closest('.theme-popover') || event.target.closest('#theme-btn');
+      event.target.closest('.theme-popover') ||
+      event.target.closest('.glass-params-panel') ||
+      event.target.closest('#theme-btn');
     const insideFont =
       event.target.closest('.font-popover') ||
       event.target.closest('[data-action="font-popover"]');
@@ -1903,6 +2265,48 @@ function handleDocumentClick(event) {
         event.preventDefault();
         chooseGlassBackground(actionEl.dataset.glassBackground);
         return;
+      case 'glass-params':
+        event.preventDefault();
+        toggleGlassParams(true);
+        return;
+      case 'close-glass-params':
+        event.preventDefault();
+        toggleGlassParams(false);
+        return;
+      case 'glass-params-reset':
+        event.preventDefault();
+        resetGlassParams();
+        return;
+      case 'close-dictionary':
+        event.preventDefault();
+        closeDictionary();
+        return;
+      case 'dictionary-retry': {
+        event.preventDefault();
+        const word = actionEl.dataset.word || state.ui.dictionary?.word;
+        const current = state.ui.dictionary;
+        if (!word) return;
+        requestDictionary(
+          word,
+          current ? current.x : window.innerWidth / 2,
+          current ? current.y : window.innerHeight / 3,
+          true
+        );
+        return;
+      }
+      case 'clear-dictionary':
+        event.preventDefault();
+        api
+          .clearDictionaryCache()
+          .then(() => {
+            dictMemory.clear();
+            closeDictionary();
+            const status = $('#dictionary-status');
+            if (status) status.textContent = '词典缓存已清除';
+            toast('词典缓存已清除', 'success');
+          })
+          .catch(() => toast('清除词典缓存失败', 'warn'));
+        return;
       case 'save-proxy':
         event.preventDefault();
         saveProxyUrl();
@@ -1915,6 +2319,7 @@ function handleDocumentClick(event) {
         event.preventDefault();
         state.ui.modal = 'settings';
         state.ui.themeOpen = false;
+        state.ui.glassParamsOpen = false;
         renderOverlayUI();
         return;
       case 'clear-read':
@@ -2013,11 +2418,26 @@ function handleDocumentChange(event) {
   if (event.target.id === 'auto-news-digest-toggle') {
     toggleAutoNewsDigest(!!event.target.checked);
   }
+  if (event.target.id === 'dictionary-toggle') {
+    const enabled = setDictionaryOn(!!event.target.checked);
+    if (!enabled) closeDictionary();
+    if (state.ui.activeItem) refreshReaderContent();
+    toast(enabled ? '双击英文查词已开启' : '双击英文查词已关闭');
+  }
 }
 
 function handleDocumentInput(event) {
   if (event.target.id === 'note-input') {
     handleNoteInput(event.target);
+  }
+  if (event.target.matches('[data-glass-alpha]')) {
+    setGlassAlpha(Number(event.target.value));
+  }
+  if (event.target.matches('[data-theme-gray]')) {
+    setThemeGray(Number(event.target.value));
+  }
+  if (event.target.matches('[data-glass-param]')) {
+    updateGlassParams();
   }
   if (event.target.id === 'font-size-slider' || event.target.id === 'settings-font-slider') {
     setReaderFontSize(Number(event.target.value));
@@ -2031,6 +2451,14 @@ function handleDocumentInput(event) {
 }
 
 function handleDocumentKeydown(event) {
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'b') {
+    const typing = /^(input|textarea|select)$/i.test(event.target?.tagName || '');
+    if (!typing) {
+      event.preventDefault();
+      toggleSidebar();
+      return;
+    }
+  }
   if (event.key === 'Escape') {
     if (state.ui.modal) {
       event.preventDefault();
@@ -2038,7 +2466,12 @@ function handleDocumentKeydown(event) {
       renderOverlayUI();
       return;
     }
-    if (state.ui.fontOpen || state.ui.themeOpen) {
+    if (state.ui.dictionary) {
+      event.preventDefault();
+      closeDictionary();
+      return;
+    }
+    if (state.ui.fontOpen || state.ui.themeOpen || state.ui.glassParamsOpen) {
       event.preventDefault();
       closeReaderPopovers();
       return;
@@ -2164,9 +2597,11 @@ function initialViewFromHash() {
 
 async function boot() {
   hydrateLocal();
+  state.glassParams = normalizeGlassParams(state.glassParams);
   applyReaderFontSize();
   applyReaderColumnWidth();
   fillStaticIcons();
+  applySidebarLayout();
   if (!api) {
     els.main.innerHTML = `<div class="view"><div class="lg-empty app-empty"><div class="lg-empty-title">预加载脚本未运行</div><p class="lg-empty-text">请通过 npm start 启动应用，而不是直接打开 index.html。</p></div></div>`;
     return;
@@ -2191,7 +2626,7 @@ async function boot() {
 
   applyTheme(state.theme);
   renderAll();
-  initGlass(state.glassBackground);
+  initGlass(state.glassBackground, state.glassParams);
   scheduleAutoRefresh();
 
   const hasItems = allItems().length > 0;

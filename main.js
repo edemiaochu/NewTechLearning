@@ -14,6 +14,7 @@ const fs = require('fs');
 const { FeedService } = require('./lib/feeds');
 const { loadArticle } = require('./lib/article');
 const { ArticleStore } = require('./lib/article-store');
+const { DictionaryStore } = require('./lib/dictionary');
 const { getSource } = require('./lib/sources');
 const { SettingsStore } = require('./lib/settings');
 const { createSummarizer } = require('./lib/ai');
@@ -39,6 +40,7 @@ const shotView = (process.argv.find((arg) => arg.startsWith('--shot-view=')) || 
 let win = null;
 let feeds = null;
 let articleStore = null;
+let dictionary = null;
 let settings = null;
 let summarizer = null;
 let proxyStatus = { mode: 'system', rules: '', resolved: '', error: '' };
@@ -49,6 +51,8 @@ const THEME_BG = {
   forest: '#101a14',
   ember: '#1a1210',
   violet: '#1b1423',
+  black: '#080808',
+  graphite: '#242424',
   light: '#f3f4f6',
 };
 
@@ -379,6 +383,22 @@ function registerIpc() {
     }
   });
 
+  ipcMain.handle('dictionary:lookup', async (_event, payload = {}) => {
+    try {
+      return await dictionary.lookup(payload.word, { force: !!payload.force });
+    } catch (err) {
+      return { ok: false, code: 'error', message: err?.message || '词典查询失败' };
+    }
+  });
+
+  ipcMain.handle('dictionary:clear', async () => {
+    try {
+      return await dictionary.clear();
+    } catch {
+      return { entries: 0 };
+    }
+  });
+
   ipcMain.handle('ai:summarize', async (_event, payload) => {
     try {
       return await summarizer.summarize(payload);
@@ -554,6 +574,8 @@ async function bootstrap() {
   await feeds.init();
   articleStore = new ArticleStore({ file: path.join(userData, 'article-cache.json') });
   await articleStore.init();
+  dictionary = new DictionaryStore({ file: path.join(userData, 'dictionary-cache.json') });
+  await dictionary.init();
 
   proxyStatus = await applyProxyConfig(settings.getProxyConfig());
 

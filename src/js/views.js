@@ -38,10 +38,34 @@ const THEME_OPTIONS = [
   { id: 'aurora', label: '极光' },
   { id: 'ocean', label: '深海' },
   { id: 'forest', label: '森林' },
-  { id: 'ember', label: '余烬' },
+  { id: 'ember', label: '熔岩' },
   { id: 'violet', label: '紫罗兰' },
-  { id: 'light', label: '浅色' },
+  { id: 'black', label: '纯黑' },
+  { id: 'graphite', label: '黑灰' },
+  { id: 'light', label: '明亮' },
 ];
+
+const GLASS_BACKGROUNDS = [
+  { id: 'clean', label: '柔光' },
+  { id: 'specimen', label: '标定' },
+  { id: 'solid', label: '纯色' },
+];
+
+const GLASS_FIELDS = [
+  { key: 'ior', label: '折射率', min: 1, max: 2, step: 0.01 },
+  { key: 'thickness', label: '厚度', min: 0, max: 140, step: 1 },
+  { key: 'dispersion', label: '色散', min: 0, max: 1, step: 0.01 },
+  { key: 'roughness', label: '粗糙度', min: 0, max: 1, step: 0.01 },
+  { key: 'bevel', label: '倒角', min: 0, max: 60, step: 1 },
+];
+
+const DEFAULT_GLASS_PARAMS = {
+  ior: 1.55,
+  thickness: 84,
+  dispersion: 0.4,
+  roughness: 0.06,
+  bevel: 4,
+};
 
 const MODEL_LABELS = {
   'claude-opus-5-5': 'Claude Opus 5.5',
@@ -1687,6 +1711,11 @@ export function renderReaderContent() {
     <div class="reader-sub">${metaParts
       .map((part) => esc(part))
       .join('<span class="dot"></span>')}</div>
+    ${
+      state.ui.dictionaryOn
+        ? `<div class="reader-dict-hint">${icon('book')} 双击英文单词查词典</div>`
+        : ''
+    }
 
     ${
       state.ui.aiLoading
@@ -1936,19 +1965,299 @@ function themeOptions(activeTheme, optionClass) {
   return THEME_OPTIONS.map(
     (theme) => `<button class="${optionClass}${
       activeTheme === theme.id ? ' is-active' : ''
-    }" type="button" data-theme-option="${theme.id}" title="${esc(theme.label)}">
+    }" type="button" data-theme-option="${theme.id}" title="${esc(theme.label)}" role="radio" aria-checked="${
+      activeTheme === theme.id
+    }">
       <span class="theme-swatch" data-swatch="${theme.id}"></span>
-      <span>${esc(theme.label)}</span>
+      <span class="theme-option-name">${esc(theme.label)}</span>
     </button>`
   ).join('');
 }
 
 export function renderThemePopover(position = {}) {
   const style = `top:${Math.round(position.top || 64)}px;right:${Math.round(position.right || 16)}px;`;
-  return `<div class="lg-popover theme-popover" style="${esc(style)}" role="menu" aria-label="外观主题">
-    <div class="lg-popover-title">外观主题</div>
-    <div class="popover-theme-grid">${themeOptions(state.theme, 'lg-theme-option')}</div>
-    <div class="lg-popover-hint">主题与玻璃质感会立即应用，并记住你的选择。</div>
+  const grayTheme = state.theme === 'black' || state.theme === 'graphite';
+  const grayValue = state.themeGray[state.theme] ?? 3;
+  const alpha = Number.isFinite(state.glassAlpha) ? state.glassAlpha : 100;
+  const background = state.glassBackground || 'clean';
+
+  return `<div class="lg-popover theme-popover" style="${esc(
+    style
+  )}" role="dialog" aria-label="外观与主题">
+    <div class="theme-panel-head">
+      <div class="theme-panel-titles">
+        <span class="theme-panel-title">外观</span>
+        <span class="theme-panel-sub">主题 · 玻璃 · 材质</span>
+      </div>
+      <button class="theme-params-icon" type="button" data-action="glass-params" title="材质与光效参数" aria-label="材质与光效参数">${icon(
+        'sliders',
+        { strokeWidth: 2 }
+      )}</button>
+    </div>
+
+    <div class="theme-grid" role="radiogroup" aria-label="主题">${themeOptions(
+      state.theme,
+      'lg-theme-option'
+    )}</div>
+
+    <div class="theme-controls">
+      <div class="theme-slider-row">
+        <span class="theme-slider-label">玻璃</span>
+        <input class="theme-slider" type="range" min="0" max="100" step="1" value="${alpha}" data-glass-alpha aria-label="玻璃透明度" />
+        <span class="theme-slider-value" data-glass-alpha-value>${alpha}%</span>
+      </div>
+      <div class="theme-slider-row${grayTheme ? '' : ' is-disabled'}">
+        <span class="theme-slider-label">灰度</span>
+        <input class="theme-slider" type="range" min="0" max="20" step="1" value="${
+          grayTheme ? grayValue : 3
+        }" data-theme-gray ${grayTheme ? '' : 'disabled'} aria-label="灰度" />
+        <span class="theme-slider-value" data-theme-gray-value>${grayTheme ? grayValue : '—'}</span>
+      </div>
+      <div class="theme-seg-row">
+        <span class="theme-slider-label">环境</span>
+        <div class="theme-segmented" role="radiogroup" aria-label="光学玻璃背景">
+          ${GLASS_BACKGROUNDS.map(
+            (mode) =>
+              `<button class="theme-seg${
+                background === mode.id ? ' is-active' : ''
+              }" type="button" data-action="glass-background" data-glass-background="${
+                mode.id
+              }" role="radio" aria-checked="${background === mode.id}">${mode.label}</button>`
+          ).join('')}
+        </div>
+      </div>
+      <button class="theme-params-trigger" type="button" data-action="glass-params">
+        ${icon('sliders', { strokeWidth: 2 })}
+        <span>材质与光效参数</span>
+        <span class="theme-params-arrow">${icon('arrow-right', { strokeWidth: 2 })}</span>
+      </button>
+    </div>
+    <div class="theme-hint">所有调整只改变外观，立即生效并记住选择。</div>
+  </div>`;
+}
+
+function renderDictSenses(entries, lang) {
+  return entries
+    .map(
+      (group) => `<div class="dict-pos-group">
+        ${group.pos ? `<span class="dict-pos">${esc(group.pos)}</span>` : ''}
+        <ol class="dict-senses">
+          ${group.senses
+            .map(
+              (sense) => `<li class="dict-sense">
+                ${
+                  lang === 'zh' && sense.trans
+                    ? `<p class="dict-trans">${esc(sense.trans)}</p>`
+                    : ''
+                }
+                ${sense.def ? `<p class="dict-def">${esc(sense.def)}</p>` : ''}
+                ${
+                  sense.example
+                    ? `<p class="dict-example">${esc(sense.example)}${
+                        sense.exampleTrans
+                          ? `<span class="dict-example-zh">${esc(sense.exampleTrans)}</span>`
+                          : ''
+                      }</p>`
+                    : ''
+                }
+              </li>`
+            )
+            .join('')}
+        </ol>
+      </div>`
+    )
+    .join('');
+}
+
+const DICT_TAGS = {
+  zk: '中考',
+  gk: '高考',
+  cet4: 'CET4',
+  cet6: 'CET6',
+  ky: '考研',
+  toefl: '托福',
+  ielts: '雅思',
+  gre: 'GRE',
+};
+
+function dictBadges(ecdict) {
+  if (!ecdict) return '';
+  const badges = [];
+  if (ecdict.oxford) badges.push('牛津3000');
+  if (ecdict.collins) badges.push(`柯林斯 ${'★'.repeat(Math.min(5, ecdict.collins))}`);
+  String(ecdict.tag || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .forEach((tag) => {
+      if (DICT_TAGS[tag]) badges.push(DICT_TAGS[tag]);
+    });
+  if (ecdict.lemma && ecdict.lemma !== ecdict.word) {
+    badges.push(`词形 ${ecdict.lemma} → ${ecdict.word}`);
+  }
+  if (!badges.length) return '';
+  return `<div class="dict-badges">${badges
+    .map((badge) => `<span class="dict-badge">${esc(badge)}</span>`)
+    .join('')}</div>`;
+}
+
+export function renderDictionaryPopover() {
+  const dict = state.ui.dictionary;
+  if (!dict) return '';
+  const style = `left:${Math.round(dict.x)}px;top:${Math.round(dict.y)}px;`;
+  const data = dict.data;
+  const phonetic = data?.phonetics?.length
+    ? `/${String(data.phonetics[0]).replace(/^\/+|\/+$/g, '')}/`
+    : '';
+  let body = '';
+
+  if (dict.loading) {
+    body = `<div class="dict-loading"><span class="lg-spinner"></span><span>正在查询 Cambridge Dictionary…</span></div>`;
+  } else if (dict.error) {
+    body = `<div class="dict-error">
+      <p>${esc(dict.error)}</p>
+      <div class="dict-error-actions">
+        <button class="lg-btn lg-btn--sm" type="button" data-action="dictionary-retry" data-word="${esc(
+          dict.word
+        )}">${icon('refresh')} 重试</button>
+        ${
+          dict.sourceUrl
+            ? `<button class="lg-btn lg-btn--sm" type="button" data-external="${esc(
+                dict.sourceUrl
+              )}">${icon('external')} 在 Cambridge 打开</button>`
+            : ''
+        }
+      </div>
+    </div>`;
+  } else if (data) {
+    const englishLabel =
+      data.englishSource === 'wiktionary' ? 'Wiktionary' : 'Cambridge 英英';
+    body = `
+      ${
+        data.english?.length
+          ? `<section class="dict-section">
+              <div class="dict-section-head"><span>英英</span><span class="dict-source">${esc(
+                englishLabel
+              )}</span></div>
+              ${renderDictSenses(data.english, 'en')}
+            </section>`
+          : ''
+      }
+      ${
+        data.chinese?.length
+          ? `<section class="dict-section">
+              <div class="dict-section-head"><span>英汉</span><span class="dict-source">${
+                data.chineseSource === 'ecdict' ? 'ECDICT 离线' : 'Cambridge 英汉'
+              }</span></div>
+              ${renderDictSenses(data.chinese, 'zh')}
+            </section>`
+          : data.english?.length
+          ? ''
+          : `<div class="dict-empty">没有可显示的释义。</div>`
+      }
+      ${
+        !data.english?.length && !data.chinese?.length
+          ? `<div class="dict-empty">Cambridge 暂时没有返回这个词的释义。</div>`
+          : ''
+      }`;
+  }
+
+  return `<div class="dict-popover" style="${esc(style)}" role="dialog" aria-label="英文词典">
+    <header class="dict-head">
+      <div class="dict-head-text">
+        <div class="dict-word-line">
+          <span class="dict-word">${esc(dict.word)}</span>
+          ${phonetic ? `<span class="dict-phonetic">${esc(phonetic)}</span>` : ''}
+        </div>
+        <div class="dict-sub">${
+          data
+            ? data.offlineOnly
+              ? 'ECDICT 离线词典 · 双击查词'
+              : 'Cambridge Dictionary · 双击查词'
+            : 'Cambridge Dictionary'
+        }</div>
+        ${data ? dictBadges(data.ecdict) : ''}
+      </div>
+      <button class="dict-close" type="button" data-action="close-dictionary" title="关闭" aria-label="关闭">${icon(
+        'close',
+        { strokeWidth: 2 }
+      )}</button>
+    </header>
+    <div class="dict-body lg-scroll">${body}</div>
+    ${
+      data
+        ? `<footer class="dict-foot">
+            ${
+              data.englishUrl
+                ? `<button type="button" data-external="${esc(
+                    data.englishUrl
+                  )}">英英原文</button>`
+                : ''
+            }
+            ${
+              data.chineseUrl
+                ? `<button type="button" data-external="${esc(
+                    data.chineseUrl
+                  )}">英汉原文</button>`
+                : ''
+            }
+            ${
+              data.offlineOnly
+                ? `<button type="button" data-action="dictionary-retry" data-word="${esc(
+                    dict.word
+                  )}">联网重查</button>`
+                : ''
+            }
+            <span>${
+              data.offlineOnly ? '离线 ECDICT · 联网后可重查' : '按需查询 · 仅供学习参考'
+            }</span>
+          </footer>`
+        : ''
+    }
+  </div>`;
+}
+
+export function renderGlassParamsPanel(position = {}) {
+  const style = `top:${Math.round(position.top || 64)}px;right:${Math.round(
+    position.right || 16
+  )}px;`;
+  const params = { ...DEFAULT_GLASS_PARAMS, ...(state.glassParams || {}) };
+  return `<div class="lg-popover glass-params-panel" style="${esc(
+    style
+  )}" role="dialog" aria-label="光学玻璃材质与光效">
+    <header class="glass-params-head">
+      <div class="theme-panel-titles">
+        <span class="theme-panel-title">材质与光效</span>
+        <span class="theme-panel-sub">实时生效 · 跟随主题</span>
+      </div>
+      <div class="glass-params-actions">
+        <button class="glass-params-reset" type="button" data-action="glass-params-reset" title="恢复默认材质" aria-label="恢复默认材质">${icon(
+          'reset',
+          { strokeWidth: 2 }
+        )}</button>
+        <button class="glass-params-close" type="button" data-action="close-glass-params" title="关闭" aria-label="关闭">${icon(
+          'close',
+          { strokeWidth: 2 }
+        )}</button>
+      </div>
+    </header>
+    <div class="glass-params-grid">
+      ${GLASS_FIELDS.map((field) => {
+        const value = params[field.key];
+        return `<label class="glass-param-row">
+          <span class="glass-param-label">${field.label}</span>
+          <input class="theme-slider glass-param-slider" type="range" min="${
+            field.min
+          }" max="${field.max}" step="${field.step}" value="${value}" data-glass-param="${
+          field.key
+        }" aria-label="${field.label}" />
+          <output class="glass-param-value" data-glass-param-value="${field.key}">${value}</output>
+        </label>`;
+      }).join('')}
+    </div>
+    <div class="glass-params-foot">
+      <span>折射率、厚度、色散、粗糙度与倒角由 WebGL2 光学层实时渲染。</span>
+      <span class="glass-params-fallback">无 WebGL2 时自动保留 CSS 玻璃。</span>
+    </div>
   </div>`;
 }
 
@@ -2166,9 +2475,35 @@ export function renderSettingsModal() {
         </section>
 
         <section class="settings-section">
+          <h3>${icon('book')} 阅读与词典</h3>
+          <p class="settings-desc">阅读文章时双击英文单词，即可查询 Cambridge 的英英释义与英汉翻译。查询在主进程完成，结果缓存在本机 30 天。</p>
+          <div class="settings-inline">
+            <label class="settings-inline-label" for="dictionary-toggle">双击英文查词
+              <span>英英 + 英汉 · 按需查询，不预取、不批量抓取</span>
+            </label>
+            <label class="check-toggle"><input type="checkbox" id="dictionary-toggle" ${
+              state.ui.dictionaryOn ? 'checked' : ''
+            } /> 启用</label>
+          </div>
+          <div class="settings-row" style="margin-top:8px">
+            <button class="lg-btn" type="button" data-action="clear-dictionary">${icon(
+              'trash'
+            )} 清除词典缓存</button>
+            <span class="proxy-test-status" id="dictionary-status">Cambridge Dictionary · 英英 / 英汉</span>
+          </div>
+          <p class="settings-note">Oxford Learner's Dictionaries 未提供免费公开接口，且其 robots 规则不允许自动抓取，因此词典来源使用 Cambridge；英英释义在 Cambridge 不可用时回退到 Wiktionary。</p>
+        </section>
+
+        <section class="settings-section">
           <h3>${icon('palette')} 外观</h3>
-          <p class="settings-desc">六套主题共享同一套玻璃物理规则，只替换表面、主色与环境光。</p>
-          <div class="theme-grid">${themeOptions(state.theme, 'app-theme-option')}</div>
+          <p class="settings-desc">八套主题共享同一套玻璃物理规则，只替换表面、主色与环境光；纯黑与黑灰额外提供灰度调节。</p>
+          <div class="theme-grid" role="radiogroup" aria-label="主题">${themeOptions(state.theme, 'app-theme-option')}</div>
+          <div class="settings-inline font-setting-row">
+            <label class="settings-inline-label" for="settings-glass-alpha">玻璃强度
+              <span>只调整工具栏、面板与侧栏等浮层 · <span id="settings-glass-alpha-value">${state.glassAlpha}%</span></span>
+            </label>
+            <input class="lg-slider" id="settings-glass-alpha" type="range" min="0" max="100" step="1" value="${state.glassAlpha}" data-glass-alpha aria-label="玻璃强度" />
+          </div>
           <div class="settings-inline glass-bg-setting">
             <label class="settings-inline-label">光学玻璃背景
               <span>WebGL 光学层的环境 · 纯色没有可折射的细节</span>
@@ -2277,7 +2612,11 @@ export function renderFontPopover(position = {}) {
   </div>`;
 }
 
-export function renderOverlay(themePosition = null, fontPosition = null) {
+export function renderOverlay(
+  themePosition = null,
+  fontPosition = null,
+  paramsPosition = null
+) {
   if (state.ui.modal === 'settings') return renderSettingsModal();
   let html = '';
   if (state.ui.digestOpen) {
@@ -2286,7 +2625,9 @@ export function renderOverlay(themePosition = null, fontPosition = null) {
     html += renderReader();
   }
   if (state.ui.themeOpen) html += renderThemePopover(themePosition || {});
+  if (state.ui.glassParamsOpen) html += renderGlassParamsPanel(paramsPosition || {});
   if (state.ui.fontOpen) html += renderFontPopover(fontPosition || {});
+  if (state.ui.dictionary) html += renderDictionaryPopover();
   return html;
 }
 

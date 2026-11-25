@@ -6,13 +6,14 @@
 
 ## 项目
 - [项目概览](PROJECT.md) — 液态玻璃风格的前沿技术学习 Electron 桌面应用
-- [当前状态](STATE.md) — 核心功能已完成；未提交、未打包；待真实网络复测
+- [当前状态](STATE.md) — 核心功能已完成并已提交 main；未打包；待真实网络复测
 
 ## 主题
-- [液态玻璃 UI](topics/ui-liquid-glass.md) — 设计 tokens、6 套主题、WebGL2 光学玻璃层、窗口与首页层级
+- [液态玻璃 UI](topics/ui-liquid-glass.md) — 工作台布局、8 套主题、玻璃强度/灰度/材质、WebGL2 光学玻璃层
 - [信息源与抓取](topics/sources-feeds.md) — 15 个来源、RSS/Atom、正文抽取与摘要
 - [今日热点新闻](topics/news-module.md) — 当天范围、跨来源事件聚合、关键词与世界要闻
 - [阅读体验](topics/reader-experience.md) — 居中/全屏/分栏、字号、宽度与阅读框
+- [英文词典](topics/dictionary.md) — 双击查词、Cambridge 英英/英汉、ECDICT 离线英汉、Wiktionary 回退与本地缓存
 - [AI 精读与概览](topics/ai-deep-read.md) — 四种服务商、本机 Claude Code 配置、单篇精读与今日概览缓存
 - [网络与代理](topics/networking-proxy.md) — 全局代理、直连 session、按来源自动回退
 - [缓存与持久化](topics/caching-persistence.md) — 资讯、正文、AI、笔记、画笔、已读
@@ -20,6 +21,7 @@
 - [画笔标注](topics/ink-annotation.md) — 笔迹、工具、自定义光标与持久化
 
 ## 历史
+- [2026-11-25](history/2026-11-25.md) — 应用工作台 UI 规范：分组玻璃工具栏、可折叠侧栏、8 主题、玻璃强度/灰度/材质参数面板
 - [2026-11-24](history/2026-11-24.md) — 新增今日热点新闻模块、7 个新闻源、AI 今日概览、全屏阅读与 Markdown/PDF 导出
 - [2026-11-23](history/2026-11-23.md) — 从 0 到 1 完成应用与全天多轮反馈修复
 - [历史归档](history/ARCHIVE.md) — 初始化之前的压缩历史

@@ -29,6 +29,9 @@ updated: 2026-11-24
 - `lib/feeds.js` — RSS/Atom 抓取、解析、条件请求、合并与缓存
 - `lib/article.js` — HTML / claude.dev Markdown / arXiv 摘要正文抽取
 - `lib/article-store.js` — 正文持久化缓存（60 篇）
+- `lib/dictionary.js` — Cambridge 英英/英汉抓取与解析、Wiktionary 回退、ECDICT 离线英汉、词典缓存
+- `data/ecdict.json.gz` — ECDICT 精简离线英汉数据（59k 词 + 39k 词形，约 2.2MiB）
+- `scripts/build-ecdict.js` — 从 ECDICT CSV 生成上述精简数据
 - `lib/summarize.js` — 本地抽取式摘要、关键词、阅读时长
 - `lib/ai.js` — Anthropic SDK 与 OpenAI 兼容 AI 精读 + 新闻概览
 - `lib/local-claude.js` — 读取本机 Claude Code 配置（凭据不出主进程）
@@ -50,7 +53,9 @@ updated: 2026-11-24
 5. AI 精读通过 Anthropic SDK（本机 Claude Code 配置或官方）或 OpenAI 兼容 `/chat/completions`；AI 摘要存 localStorage，可独立于正文显示。
 6. AI 今日概览复用同一 AI 通道：按新闻指纹缓存 `fr.newsDigest`，打开今日热点且指纹变化时自动生成；可关闭自动整理；支持全屏阅读与 Markdown/PDF 导出。
 7. PDF 在隐藏 `BrowserWindow` 中加载白底模板后 `printToPDF`。
-8. WebGL2 光学玻璃层在渲染层独立运行：固定 `#glass-canvas` 在 UI 之后，`GlassRenderer` 每帧渲染程序化环境 + 玻璃 composite；`glass.js` 把标题栏/侧栏/搜索/工具栏簇/窗口控制注册为玻璃表面，并从当前主题 tokens 生成环境调色板。侧栏是单个玻璃表面，导航/来源行为普通 CSS 行；主内容区是不透明静态舞台，不做 WebGL 表面。
+8. WebGL2 光学玻璃层在渲染层独立运行：固定 `#glass-canvas` 在 UI 之后，`GlassRenderer` 每帧渲染程序化环境 + 玻璃 composite；`glass.js` 把标题栏/侧栏/搜索/导航与操作工具栏簇注册为玻璃表面（窗口控制为无外框图标按钮，不注册），并从当前主题 tokens 生成环境调色板。侧栏是单个玻璃表面，导航/来源行为普通 CSS 行；主内容区是不透明静态舞台，不做 WebGL 表面。
+9. 工作台壳层：工具栏为单行分组胶囊（导航组/操作组），侧栏可折叠并拖拽调宽；主题面板提供 8 套主题、玻璃强度、灰度与光学材质参数，状态存 localStorage。
+10. 词典：阅读器双击英文单词，渲染层经 IPC 请求主进程；主进程并行抓取 Cambridge 英英与英汉页面，解析后按词缓存 30 天；英英失败回退 Wiktionary，英汉缺失或断网时使用随应用打包的 ECDICT 离线词库（MIT）。Oxford 未接入（无免费 API 且 robots 不允许自动抓取）。
 
 ## 约定与坑
 
@@ -73,7 +78,7 @@ updated: 2026-11-24
 ## 关键入口
 
 - `main.js` — IPC `feeds:*`、`article:load`、`ai:summarize`、`news:digest`、`news:export-digest`、`pdf:*`、`net:test`
-- `src/js/app.js` — 应用编排、布局、画笔、路由 UI、AI 概览自动生成/全屏/导出、AI/PDF 触发
+- `src/js/app.js` — 应用编排、布局、画笔、路由 UI、AI 概览自动生成/全屏/导出、双击查词、AI/PDF 触发
 - `src/js/views.js` — 首页/今日热点/AI 概览与全屏阅读/Claude/阅读器/设置/PDF 按钮等渲染
 - `src/js/news.js` — 当天范围、跨来源事件聚合、关键词、新闻选择器与概览指纹
 - `src/js/state.js` — 本地状态与 localStorage 持久化
@@ -87,3 +92,4 @@ updated: 2026-11-24
 - 部分站点有付费墙/反爬，正文可能抽取失败；会回退来源摘要。
 - 第一次打开文章仍需网络；成功打开后才进入正文缓存。
 - AI API 请求目前仍走全局代理，不受按来源直连影响。
+- 词典依赖 Cambridge 页面结构；Oxford 无免费公开接口且 robots 禁止自动抓取，因此未接入。

@@ -1,8 +1,8 @@
 ---
 name: current-state
-description: 项目当前状态：核心能力、今日热点、AI 概览/全屏/导出已完成；未提交、未打包；待真实代理与导出保存对话框复测
+description: 项目当前状态：核心能力、今日热点、AI 概览/全屏/导出已完成；工作台 UI 改动未提交；未打包；待真实代理与导出保存对话框复测
 type: state
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 
 # 当前状态
@@ -17,9 +17,12 @@ updated: 2026-11-24
 - 设置新增 `autoNewsDigest`（默认开启）；概览缓存 `fr.newsDigest`
 - claude.dev 官方 Markdown、arXiv 摘要、通用 HTML 正文抽取 — `article.js`
 - Claude 专区、学习路线、专区笔记 — `views.js`
-- 液态玻璃 UI、6 套主题、无边框窗口、自定义图标 — `src/styles/` / `build/`
+- 液态玻璃工作台 UI、8 套主题、无边框窗口、自定义图标 — `src/styles/` / `build/`
+- 工作台壳层：单行分组玻璃工具栏（导航组/操作组）、可折叠与可拖动侧栏（`Ctrl/⌘+B`）、工具栏视图切换 — `index.html` / `app.js` / `app.css`
+- 主题面板升级：348px 4 列 8 主题、玻璃强度 0–100%、纯黑/黑灰灰度调节、光学背景分段、材质与光效参数面板（折射率/厚度/色散/粗糙度/倒角）— `views.js` / `app.js` / `tokens.css` / `glass.js`
+- 英文词典：阅读器双击英文单词查词，Cambridge 英英 + 英汉释义/例句/音标，Wiktionary 英英回退；内置 ECDICT 离线英汉（59k 词 + 39k 词形，约 2.2MiB，MIT），断网或 Cambridge 缺词时兜底并支持「联网重查」；主进程抓取解析，30 天本地缓存，可在设置关闭或清缓存 — `lib/dictionary.js` / `data/ecdict.json.gz` / `app.js` / `views.js`
 - macOS 窗口适配：保留原生红绿灯并垂直居中，隐藏自定义窗口按钮，品牌图标与文字移到右上；Windows/Linux 保持原布局 — `main.js` / `preload.js` / `theme-boot.js` / `app.css`
-- WebGL2 光学玻璃层：标题栏/侧栏/搜索/工具栏簇/窗口控制真实折射、色散、Fresnel 与指针高光；侧栏是单个光学表面，导航/来源行为普通 CSS 行（2026-11-24 重设计）；主内容区是不透明静态舞台，保证正文清晰 — `src/js/glass.js` / `src/liquid-glass/` / `src/styles/glass-webgl.css`
+- WebGL2 光学玻璃层：标题栏/侧栏/搜索/工具栏簇真实折射、色散、Fresnel 与指针高光；侧栏是单个光学表面，导航/来源行为普通 CSS 行（2026-11-24 重设计）；窗口控制为无外框图标，不参与玻璃表面；主内容区是不透明静态舞台，保证正文清晰 — `src/js/glass.js` / `src/liquid-glass/` / `src/styles/glass-webgl.css`
 - 光学玻璃背景模式：柔光渐变 / 光学标定 / 主题纯色，设置→外观切换并持久化 `fr.glassBackground`；主题切换同步调色板与纯色底
 - 居中 / 全屏 / 右侧分栏阅读，分栏下信息流仍可点击
 - 阅读框宽高、阅读栏宽度、字号 14–24px 可调并持久化
@@ -33,11 +36,11 @@ updated: 2026-11-24
 - 独立直连 session、主机级探测缓存 5 分钟
 - 首页层级调整：概览优先，Claude 专区降为普通导航
 
-## 进行中 / 未提交
+## 进行中 / 未完成
 
-- 应用代码全部尚未提交 git；工作区包含新增文件与 README 修改
-- 当前有旧版 Frontier Radar 窗口在运行，重启后才加载最新代码
-- 安装包尚未配置
+- 代码已提交 main：`7001e41` init → `b78d4d0` 增加新闻模块 → `41f1654` 更新 ui 为液态玻璃
+- 2026-11-25 工作台 UI、8 主题、英文词典（Cambridge + ECDICT）已随本次交付提交 main
+- 安装包尚未配置（无 electron-builder / Forge）
 
 ## 已知问题与限制
 
@@ -47,6 +50,7 @@ updated: 2026-11-24
 - 首次打开文章需要网络；正文缓存需成功打开一次后才有
 - 直连探测使用 HEAD，极少数只接受 GET 的站点可能被误判；可手动勾「直连」
 - AI API 请求仍遵循全局代理，不受按来源直连影响
+- 词典依赖 Cambridge 页面结构，站点改版或反爬会失败（此时英文回退 Wiktionary、英汉回退 ECDICT）；ECDICT 为常用词子集，生僻词/新词可能缺失；Oxford 无免费公开接口且 robots 禁止自动抓取，未接入
 - 画笔标注仅在应用内显示，不进入 PDF
 - 分栏宽度与居中阅读框尺寸不会在同一布局设置下互相换算
 - WebGL 光学材质只用于透明 chrome 层；modal/popover/toast/阅读器仍是 CSS 玻璃 fallback（页面 canvas 无法绘制在覆盖内容之上）
@@ -57,7 +61,7 @@ updated: 2026-11-24
 - [ ] 在真实 Clash / 系统代理环境复测 15 个来源与按来源路由延迟
 - [ ] 决定是否增加「AI 请求直连」开关（复用 direct session）
 - [ ] 配置 electron-builder，产出 Windows 安装包
-- [ ] 按功能拆分 git commit 并提交
+- [x] 按功能拆分 git commit 并提交（`7001e41` / `b78d4d0` / `41f1654`）
 - [ ] 增加自动化冒烟测试：Feed 解析、正文抽取、AI mock、PDF、路由选择
 - [ ] 在真实窗口点击验证 AI 概览 Markdown/PDF 保存对话框（已验证按钮、IPC 与 PDF 渲染器）
 - [ ] 视反馈考虑原生全屏、画笔与 PDF 结合、笔记区位置优化
@@ -65,6 +69,8 @@ updated: 2026-11-24
 
 ## 最近变化
 
+- 2026-11-25 — 新增英文词典：阅读器双击英文单词，Cambridge 英英 + 英汉释义与例句，Wiktionary 英英回退，主进程抓取与 30 天缓存；详见 [topics/dictionary.md](topics/dictionary.md)
+- 2026-11-25 — 应用 `glass-workspace-ui` 工作台规范：工具栏拆为导航/操作两组玻璃胶囊（32px 按钮、18px stroke-2 图标），新增侧栏折叠与拖拽调宽，主题面板升级为 348px 8 主题 + 玻璃强度 + 灰度 + 光学背景 + 材质参数面板；详见 [history/2026-11-25.md](history/2026-11-25.md)
 - 2026-11-24 — 侧栏重设计：浏览/我的/资讯源/新闻源分组，统一行高与计数样式，active 左侧光条，底部同步卡片；取消行级光学玻璃，侧栏保留单块玻璃
 - 2026-11-24 — 对比 PDF-Reader 做清晰度对齐：主内容区改为不透明静态舞台，玻璃只保留在 chrome/侧栏；补宿主 `--shadow-optical`，移除抗锯齿字体设置
 - 2026-11-24 — 同步 `liquid-glass-optics` 更新：Liquid 预设 84/4、关闭接触阴影、恢复 0.90 边缘吸收，玻璃边改为细亮 rim；移除本地 shadow/rim 扩展并按新 tuning 校准表面倍率

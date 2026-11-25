@@ -67,13 +67,13 @@ const STATIC_SURFACES = [
     },
   },
   {
-    selector: '.lg-window-controls',
+    selector: '.app-nav-cluster',
     config: {
-      radius: 12,
+      radius: 16,
       layer: 3,
-      tintOpacity: 0.1,
-      bevelScale: 0.5,
-      thicknessScale: 0.55,
+      tintOpacity: 0.16,
+      bevelScale: 0.55,
+      thicknessScale: 0.7,
       interactive: true,
     },
   },
@@ -82,6 +82,39 @@ const STATIC_SURFACES = [
 let controller = null;
 let surfaceTint = '#ffffff';
 let backgroundMode = 'clean';
+let glassParams = { ...PRESETS.Liquid };
+
+/** Material knobs the bundled optics core understands. */
+export const GLASS_PARAM_FIELDS = [
+  { key: 'ior', label: '折射率', min: 1, max: 2, step: 0.01 },
+  { key: 'thickness', label: '厚度', min: 0, max: 140, step: 1, unit: 'px' },
+  { key: 'dispersion', label: '色散', min: 0, max: 1, step: 0.01 },
+  { key: 'roughness', label: '粗糙度', min: 0, max: 1, step: 0.01 },
+  { key: 'bevel', label: '倒角', min: 0, max: 60, step: 1, unit: 'px' },
+];
+
+export function normalizeGlassParams(input) {
+  const next = { ...PRESETS.Liquid };
+  if (input && typeof input === 'object') {
+    for (const field of GLASS_PARAM_FIELDS) {
+      const value = Number(input[field.key]);
+      if (Number.isFinite(value)) {
+        next[field.key] = Math.min(field.max, Math.max(field.min, value));
+      }
+    }
+  }
+  return next;
+}
+
+export function getGlassParams() {
+  return glassParams;
+}
+
+export function setGlassParams(params) {
+  glassParams = normalizeGlassParams(params);
+  controller?.setParams(glassParams);
+  return glassParams;
+}
 
 function normalizeBackground(mode) {
   return GLASS_BACKGROUNDS.includes(mode) ? mode : 'clean';
@@ -185,7 +218,7 @@ function watchTheme() {
  * Boot the renderer. Safe to call once; returns false when the platform should
  * keep the existing CSS-only glass (reduced transparency or no WebGL2).
  */
-export function initGlass(initialBackground = 'clean') {
+export function initGlass(initialBackground = 'clean', initialParams = null) {
   if (controller) return true;
 
   const reduceTransparency = window.matchMedia?.('(prefers-reduced-transparency: reduce)').matches;
@@ -195,10 +228,11 @@ export function initGlass(initialBackground = 'clean') {
   if (!canvas) return false;
 
   backgroundMode = normalizeBackground(initialBackground);
+  glassParams = normalizeGlassParams(initialParams);
 
   controller = createLiquidGlass({
     canvas,
-    params: PRESETS.Liquid,
+    params: glassParams,
     theme: currentTheme(),
     palette: readPalette(),
     background: backgroundMode,
