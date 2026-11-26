@@ -2,7 +2,7 @@
 name: project-overview
 description: 液态玻璃风格的前沿技术学习 Electron 桌面应用，聚合 15 个信息源并提供 Claude 专区、今日热点与 AI 今日概览（全屏/导出）、AI 精读、画笔与 PDF
 type: project
-updated: 2026-11-24
+updated: 2026-11-26
 ---
 
 # 前沿雷达 Frontier Radar
@@ -53,7 +53,7 @@ updated: 2026-11-24
 5. AI 精读通过 Anthropic SDK（本机 Claude Code 配置或官方）或 OpenAI 兼容 `/chat/completions`；AI 摘要存 localStorage，可独立于正文显示。
 6. AI 今日概览复用同一 AI 通道：按新闻指纹缓存 `fr.newsDigest`，打开今日热点且指纹变化时自动生成；可关闭自动整理；支持全屏阅读与 Markdown/PDF 导出。
 7. PDF 在隐藏 `BrowserWindow` 中加载白底模板后 `printToPDF`。
-8. WebGL2 光学玻璃层在渲染层独立运行：固定 `#glass-canvas` 在 UI 之后，`GlassRenderer` 每帧渲染程序化环境 + 玻璃 composite；`glass.js` 把标题栏/侧栏/搜索/导航与操作工具栏簇注册为玻璃表面（窗口控制为无外框图标按钮，不注册）。光学环境跟随核心的 dark/light 模型；侧栏是单个玻璃表面，导航/来源行为普通 CSS 行；主内容区是不透明静态舞台，不做 WebGL 表面。核心支持 18 项材质/阴影/rim/反射参数、`clean/specimen/solid/image` 背景与可选的背景漂移。
+8. WebGL2 光学玻璃层在渲染层独立运行：固定 `#glass-canvas` 在 UI 之后，`GlassRenderer` 每帧渲染程序化环境 + 玻璃 composite；`glass.js` 把侧栏/搜索/导航与操作工具栏簇注册为玻璃表面（标题栏本体不再注册且保持透明，窗口控制为无外框图标按钮，均不注册）。光学环境跟随核心的 dark/light 模型；侧栏是单个玻璃表面，导航/来源行为普通 CSS 行；主内容区是不透明静态舞台，不做 WebGL 表面。核心支持 18 项材质/阴影/rim/反射参数、`clean/specimen/solid/image` 背景与可选的背景漂移。
 9. 工作台壳层：工具栏为单行分组胶囊（导航组/操作组），侧栏可折叠并拖拽调宽；主题面板提供 8 套主题、玻璃强度、灰度、光学开关、4 种背景、背景漂移与 18 项材质参数；设置「外观」与主题面板共用同一份状态。
 10. 词典：阅读器双击英文单词，渲染层经 IPC 请求主进程；主进程并行抓取 Cambridge 英英与英汉页面，解析后按词缓存 30 天；英英失败回退 Wiktionary，英汉缺失或断网时使用随应用打包的 ECDICT 离线词库（MIT）。Oxford 未接入（无免费 API 且 robots 不允许自动抓取）。
 

@@ -24,17 +24,19 @@ related: [[reader-experience]]
 
 - 使用 `liquid-glass-optics` skill 的 vanilla 核心，复制到 `src/liquid-glass/`；无 bundler，`tsc` 编译后的 `.js` 一并入库。
 - `#glass-canvas` 固定在 UI 之后；一个 `createLiquidGlass` 控制器渲染程序化环境 + Snell 折射/色散/Fresnel/指针高光。
-- 注册表面（`src/js/glass.js`）：`#titlebar`、`#sidebar`、`.app-search`、`.app-tool-cluster`、`.app-nav-cluster`。侧栏是**单个**光学表面，导航/来源行是普通 CSS 行，不再注册为独立玻璃形状。窗口控制是三个无边框图标按钮，不注册玻璃表面，也没有外框或阴影。主内容区也不注册表面。
+- 注册表面（`src/js/glass.js`）：`#sidebar`、`.app-search`、`.app-tool-cluster`、`.app-nav-cluster`。侧栏是**单个**光学表面，导航/来源行是普通 CSS 行，不再注册为独立玻璃形状。窗口控制是三个无边框图标按钮，不注册玻璃表面，也没有外框或阴影。主内容区也不注册表面。
+- 2026-11-26 移除顶栏最外层玻璃：`#titlebar` 不再注册为 WebGL 表面，`app.css` 里 `.app-titlebar.lg-toolbar` 去掉 sheen / 阴影 / `backdrop-filter`，背景保持 **透明**，只留 1px 分隔线；玻璃只保留在搜索框与两个图标胶囊上。关闭光学时顶栏就是应用底色的平铺条，不会在 WebGL / CSS 两套外观间切换。
+- 顶栏背景**不能**改成不透明：WebGL 材质画在 canvas 上，而 canvas 在 shell 之下（`z-index: 0` vs 顶栏 `100`），不透明背景会把搜索框/胶囊的光学玻璃整片盖住，看起来"没有玻璃效果"。所有注册表面一路透明到 canvas 这条规则同样适用于它们的祖先层。
 - 侧栏重设计（2026-11-24）：导航分为「浏览 / 我的」两组，来源分为「资讯源 / 新闻源」；分组标签 + 分隔线，行高统一（导航 36px、来源 31px），计数改为普通文本，active 用 accent tint + 左侧 2px 光条，底部同步信息改成一张小卡片。行级玻璃 rims 移除后，侧栏从 20 个描边胶囊变成一块干净的玻璃面板。
-- 2026-11-24 清晰度对齐 PDF-Reader：主内容 `.lg-main` 改为不透明静态舞台（`--bg-viewer` + 主题 ambient 渐变），光学材质只用于标题栏/侧栏/浮动控件；浮动控件用宿主 `--shadow-optical` 补深度；移除 `.lg-root` 的 `-webkit-font-smoothing: antialiased`。正文不再压在全屏动画折射背景与 5% 透明卡片上。
+- 2026-11-24 清晰度对齐 PDF-Reader：主内容 `.lg-main` 改为不透明静态舞台（`--bg-viewer` + 主题 ambient 渐变），光学材质只用于侧栏/搜索/图标胶囊等浮动控件（2026-11-26 起顶栏本体为平铺条）；浮动控件用宿主 `--shadow-optical` 补深度；移除 `.lg-root` 的 `-webkit-font-smoothing: antialiased`。正文不再压在全屏动画折射背景与 5% 透明卡片上。
 - 由于主内容舞台不透明，`.head-actions` 的次级按钮不再注册为光学表面，恢复 CSS 按钮；主内容中不允许出现 WebGL 玻璃表面（会被不透明舞台盖住）。
 - 2026-11-25 同步 `liquid-glass-optics` 最新核心：新增 13 个 `GlassStyle` 字段（接触阴影 5、边缘高光 5、高光/反射 3），与 5 个材质字段合计 18 项；材质面板升级为 568px、两列 2×2 卡片、18 个实时滑块，分组为材质 / 接触阴影 / 边缘高光 / 高光与反射。
 - 上游移除了宿主调色板（`GlassPalette` / `setPalette()`）：程序化环境改为核心内置的 `dark` / `light` 两套主题，只有 `light` 主题映射到浅色环境；八套 CSS 主题仍各自控制表面与内容颜色。保留的唯一本地核心扩展是 `registry` 的 `clip`；`MAX_SHAPES` 回到上游 32。
-- 表面倍率跟随上游表：工具栏胶囊 `layer 2`、`tint .16`、`bevel .55 / thickness .7 / refraction 1.15`；标题栏与侧栏 `layer 1`、`tint .16`、`bevel .25 / thickness .45 / refraction 1`。光学胶囊内按钮 hover 只改图标颜色，不再叠加 CSS 底色/边框/上浮/阴影（`glass-webgl.css`）。
+- 表面倍率跟随上游表：工具栏胶囊 `layer 2`、`tint .16`、`bevel .55 / thickness .7 / refraction 1.15`；侧栏 `layer 1`、`tint .16`、`bevel .25 / thickness .45 / refraction 1`。光学胶囊内按钮 hover 只改图标颜色，不再叠加 CSS 底色/边框/上浮/阴影（`glass-webgl.css`）。
 - 背景模式在主题面板与「设置 → 外观」共用：`clean` 柔光渐变、`specimen` 光学标定、`solid` 主题纯色、`image` 内置 Optical Chart（light/dark 自动匹配）。持久化键 `fr.glassBackground`；主题切换时 solid 颜色与 image 的明暗变体同步更新。
 - 内置图片以 data URL 形式由 `scripts/build-glass-backgrounds.js`（`npm run glass-bg`）生成到 `src/js/glass-backgrounds.js`：Electron 的 `file://` 页面里 WebGL 拒绝跨源 `<img>` 纹理，data URL 同时满足 CSP `img-src data:`。
 - 背景漂移是显式开关（`fr.glassAnimation`，默认关闭），对应上游 `backgroundAnimation`；`prefers-reduced-motion` 下仍冻结。
-- 光学开关（`fr.opticalGlass`，默认开启）：关闭时销毁 renderer、移除 `lg-webgl-ready`、隐藏 canvas 并加 `lg-optical-off`，立即回到 CSS 玻璃；重新开启会用当前主题、背景与参数重建并重新注册 5 个表面。
+- 光学开关（`fr.opticalGlass`，默认开启）：关闭时销毁 renderer、移除 `lg-webgl-ready`、隐藏 canvas 并加 `lg-optical-off`，立即回到 CSS 玻璃；重新开启会用当前主题、背景与参数重建并重新注册 4 个表面。
 - `html.lg-webgl-ready` 下才把 `.lg-root/.lg-app/.lg-main` 设为透明并隐藏 `.lg-ambient/.app-grid`；WebGL2 不可用或 `prefers-reduced-transparency` 时保持原 CSS 玻璃。
 - 覆盖层（modal / popover / toast / reader）仍是 CSS 玻璃：页面 canvas 位于 DOM 之后，不能绘制在覆盖内容之上。
 - 正面卡片、正文、阅读器不做 WebGL 折射，保证可读性；玻璃只用于 chrome 与浮动控件。

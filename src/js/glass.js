@@ -2,11 +2,12 @@
  * Optical liquid-glass integration (WebGL2).
  *
  * One fixed canvas sits behind the app shell. Only the chrome layers that are
- * transparent all the way down to the canvas take part: titlebar, sidebar,
- * search field, toolbar clusters and window controls. Sidebar rows are plain
- * CSS rows on the single sidebar glass surface; the main content stage is
- * opaque/static (like PDF-Reader's PDF page). CSS overlay layers (modals,
- * popovers, reader) keep the CSS glass fallback.
+ * transparent all the way down to the canvas take part: sidebar, search field
+ * and toolbar clusters. The titlebar itself is a flat opaque stage (no glass
+ * slab behind the whole bar), and the main content stage is opaque/static (like
+ * PDF-Reader's PDF page). Sidebar rows are plain CSS rows on the single sidebar
+ * glass surface. CSS overlay layers (modals, popovers, reader) keep the CSS
+ * glass fallback.
  *
  * The material core comes from the installed `liquid-glass-optics` skill.
  * The optical environment follows the core's Dark/Light theme model; the
@@ -86,17 +87,6 @@ export const GLASS_PARAM_FIELDS = GLASS_PARAM_SECTIONS.flatMap(
 const SURFACE_TINT = '#ffffff';
 
 const STATIC_SURFACES = [
-  {
-    selector: '#titlebar',
-    config: {
-      radius: 0,
-      layer: 1,
-      tintOpacity: 0.16,
-      bevelScale: 0.25,
-      thicknessScale: 0.45,
-      refractionScale: 1,
-    },
-  },
   {
     selector: '#sidebar',
     config: {

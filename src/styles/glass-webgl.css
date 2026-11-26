@@ -47,18 +47,11 @@ html.lg-webgl-ready .app-grid {
   display: none;
 }
 
-/* ---------- Titlebar ---------- */
-html.lg-webgl-ready #titlebar.lg-toolbar {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-bottom-color: transparent;
-  box-shadow: none;
-}
-
-html.lg-webgl-ready #titlebar.lg-toolbar::before {
-  display: none;
-}
+/* ---------- Titlebar ----------
+   The bar is not registered as a WebGL surface (see app.css `.app-titlebar`),
+   and it stays transparent here so the canvas behind the shell can show the
+   optical material of the search field and the icon clusters. Only those
+   capsules sit on the optical layer. */
 
 /* ---------- Sidebar ---------- */
 html.lg-webgl-ready #sidebar.lg-sidebar {

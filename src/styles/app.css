@@ -42,6 +42,23 @@ textarea {
   user-select: none;
 }
 
+/* The bar itself carries no glass slab: only the search field and the icon
+   clusters are optical surfaces. It must stay transparent so the WebGL canvas
+   behind the shell can show those capsules' refraction; an opaque bar would
+   cover the shader-drawn glass. With optical glass off, the app background
+   behind the bar is already opaque, so it reads as a flat band. */
+.app-titlebar.lg-toolbar {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--border-divider);
+  box-shadow: none;
+}
+
+.app-titlebar.lg-toolbar::before {
+  display: none;
+}
+
 /* macOS keeps the native traffic lights. Reserve their space on the left,
    drop the duplicate custom window buttons, and move the brand to the right. */
 html[data-platform="darwin"] .app-titlebar {
